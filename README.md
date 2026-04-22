@@ -1,5 +1,41 @@
-# shennong-skills-pl
+# Skills Manager
 
-## 神农.skill 尝百草，守进化  
+Skills 管理与进化平台，Web 界面，本地运行。
 
-上古神农氏，遍尝百草以辨药性——每一株植物，亲口验证，有毒则弃，有效则留。数千年后，你的 AI Skill 面临同样的问题：每次被修改，你不知道它变好了还是变坏了。 神农.skill 做的事情，和神农氏一模一样。 它守着你的 skill 文件，一旦发生变化，立刻运行测试，亲自「尝」一遍。分数上升，静默记录；小幅下降，发出警告；大幅退化，自动触发进化循环，直到恢复或超越原来的水平。 尝而知其性，进而留其优。
+## 安装
+
+```bash
+pip install -r requirements.txt
+```
+
+## 启动
+
+```bash
+# 自动检测 ~/.claude/skills 或 .claude/skills
+python app.py
+
+# 指定路径
+SKILLS_PATH=/path/to/your/skills python app.py
+
+# 指定端口
+python app.py 8080
+```
+
+打开 http://localhost:7890
+
+## AI 分析功能
+
+需要设置 Anthropic API Key：
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+python app.py
+```
+
+## Skill 类型分类
+
+| 类型 | 说明 | 进化策略 |
+|------|------|----------|
+| 可验证型 | 输出有客观标准（代码生成、格式转换） | 自动进化，无需人工 |
+| 锚点型 | 需对照人工审批样本评估 | 半自动，人工提供锚点 |
+| 判断型 | 纯主观判断（内容风格类） | 只做维护，不自动进化 |

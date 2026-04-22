@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skills Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #070A12; --surface: #0D1220; --surface2: #111827; --surface3: #161F30;
+  --border: #1A2333; --border2: #243044;
+  --primary: #38BDF8; --primary-dim: rgba(56,189,248,0.1);
+  --text: #CBD5E1; --heading: #F1F5F9; --muted: #4B5E78;
+  --green: #34D399; --green-dim: rgba(52,211,153,0.1);
+  --amber: #FBBF24; --amber-dim: rgba(251,191,36,0.1);
+  --red: #F87171; --red-dim: rgba(248,113,113,0.1);
+  --indigo: #818CF8; --indigo-dim: rgba(129,140,248,0.1);
+  --orange: #FB923C; --orange-dim: rgba(251,146,60,0.1);
+  --font: 'Syne', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+  --r: 8px; --t: 160ms ease;
+}
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; }
+
+/* ── Layout ── */
+.layout { display: grid; grid-template-rows: 52px 1fr; height: 100vh; }
+.topbar { display: flex; align-items: center; gap: 14px; padding: 0 20px;
+  border-bottom: 1px solid var(--border); background: var(--surface); }
+.logo { font-size: 15px; font-weight: 700; color: var(--heading); letter-spacing: .05em; }
+.logo span { color: var(--primary); }
+.path-badge { font-family: var(--mono); font-size: 11px; color: var(--muted);
+  background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; }
+.spacer { flex: 1; }
+.top-stat { font-size: 12px; color: var(--muted); }
+.top-stat b { color: var(--primary); }
+
+.main { display: grid; grid-template-columns: 272px 1fr; overflow: hidden; }
+
+/* ── Sidebar ── */
+.sidebar { border-right: 1px solid var(--border); overflow-y: auto; background: var(--surface); }
+.sidebar-hdr { padding: 14px 16px 8px; font-size: 10px; font-weight: 600;
+  letter-spacing: .12em; color: var(--muted); text-transform: uppercase;
+  display: flex; align-items: center; justify-content: space-between; }
+.search { margin: 0 12px 10px; background: var(--bg); border: 1px solid var(--border2);
+  border-radius: var(--r); padding: 7px 10px; color: var(--text); font-family: var(--font);
+  font-size: 13px; width: calc(100% - 24px); outline: none; transition: border-color var(--t); }
+.search:focus { border-color: var(--primary); }
+.search::placeholder { color: var(--muted); }
+
+.skill-item { padding: 9px 14px; cursor: pointer; border-left: 2px solid transparent;
+  transition: background var(--t), border-color var(--t); }
+.skill-item:hover { background: var(--surface2); }
+.skill-item.active { background: var(--primary-dim); border-left-color: var(--primary); }
+.si-top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.si-name { font-size: 13px; font-weight: 600; color: var(--heading); flex: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.si-bot { display: flex; align-items: center; gap: 5px; }
+.si-date { font-size: 10px; color: var(--muted); font-family: var(--mono); margin-left: auto; }
+.test-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+
+/* ── Badges ── */
+.badge { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; letter-spacing: .04em; }
+.badge-grade-A { background: var(--green-dim); color: var(--green); }
+.badge-grade-B { background: var(--primary-dim); color: var(--primary); }
+.badge-grade-C { background: var(--amber-dim); color: var(--amber); }
+.badge-grade-D,.badge-grade-F { background: var(--red-dim); color: var(--red); }
+.badge-verifiable { background: var(--indigo-dim); color: var(--indigo); }
+.badge-anchor { background: var(--green-dim); color: var(--green); }
+.badge-judgment { background: var(--orange-dim); color: var(--orange); }
+.badge-unknown { background: rgba(75,94,120,.15); color: var(--muted); }
+
+/* ── Detail ── */
+.detail { overflow-y: auto; }
+.empty-state { height: 100%; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px; color: var(--muted); }
+.empty-icon { font-size: 36px; opacity: .25; }
+
+/* ── Tabs ── */
+.tabs-bar { display: flex; gap: 2px; padding: 16px 28px 0;
+  border-bottom: 1px solid var(--border); background: var(--surface); }
+.tab { padding: 8px 16px; font-size: 13px; font-weight: 600; color: var(--muted);
+  border-bottom: 2px solid transparent; cursor: pointer; transition: color var(--t), border-color var(--t);
+  margin-bottom: -1px; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+.tab-content { display: none; padding: 24px 28px; }
+.tab-content.active { display: block; }
+
+/* ── Detail header ── */
+.detail-header { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 22px; }
+.detail-title-block { flex: 1; }
+.detail-name { font-size: 21px; font-weight: 700; color: var(--heading); margin-bottom: 6px; }
+.detail-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.detail-desc { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+/* Score ring */
+.ring { width: 70px; height: 70px; flex-shrink: 0; position: relative; }
+.ring svg { width: 70px; height: 70px; transform: rotate(-90deg); }
+.ring-bg { fill: none; stroke: var(--border2); stroke-width: 5; }
+.ring-fill { fill: none; stroke-width: 5; stroke-linecap: round;
+  transition: stroke-dashoffset .6s cubic-bezier(.4,0,.2,1); }
+.ring-text { position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; font-family: var(--mono); }
+.ring-num { font-size: 17px; line-height: 1; color: var(--heading); }
+.ring-lbl { font-size: 9px; color: var(--muted); letter-spacing: .06em; margin-top: 1px; }
+
+/* ── Section ── */
+.section { margin-bottom: 22px; }
+.section-title { font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* Issues */
+.issues { display: flex; flex-direction: column; gap: 5px; }
+.issue { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px;
+  border-radius: var(--r); border: 1px solid var(--border); }
+.issue.error { background: var(--red-dim); border-color: rgba(248,113,113,.2); }
+.issue.warning { background: var(--amber-dim); border-color: rgba(251,191,36,.2); }
+.issue.info { background: var(--primary-dim); border-color: rgba(56,189,248,.2); }
+.issue-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+.issue.error .issue-dot { background: var(--red); }
+.issue.warning .issue-dot { background: var(--amber); }
+.issue.info .issue-dot { background: var(--primary); }
+.issue-msg { font-size: 13px; }
+.issue-dim { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+.no-issues { padding: 10px; color: var(--green); font-size: 13px; display: flex; gap: 6px; align-items: center; }
+
+/* Type cards */
+.type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.type-card { padding: 12px; border-radius: var(--r); border: 2px solid var(--border);
+  cursor: pointer; transition: all var(--t); text-align: center; }
+.type-card:hover { border-color: var(--border2); background: var(--surface2); }
+.type-card.sel-verifiable { border-color: var(--indigo); background: var(--indigo-dim); }
+.type-card.sel-anchor { border-color: var(--green); background: var(--green-dim); }
+.type-card.sel-judgment { border-color: var(--orange); background: var(--orange-dim); }
+.type-icon { font-size: 18px; margin-bottom: 5px; }
+.type-name { font-size: 12px; font-weight: 600; color: var(--heading); }
+.type-desc { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+
+/* AI panel */
+.ai-panel { border: 1px solid var(--border2); border-radius: var(--r); overflow: hidden; }
+.ai-panel-hdr { padding: 10px 14px; background: var(--surface2);
+  display: flex; align-items: center; justify-content: space-between; }
+.ai-panel-title { font-size: 13px; font-weight: 600; color: var(--heading); display: flex; gap: 7px; align-items: center; }
+.ai-panel-body { padding: 14px; font-size: 13px; color: var(--muted); line-height: 1.6; }
+.ai-summary { color: var(--text); margin-bottom: 14px; }
+.ai-list-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: 7px; }
+.ai-list { list-style: none; display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+.ai-list li { display: flex; gap: 7px; line-height: 1.5; color: var(--text); font-size: 13px; }
+.ai-list li::before { content: '→'; color: var(--primary); flex-shrink: 0; }
+
+/* ── Buttons ── */
+.btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px;
+  border-radius: var(--r); font-size: 13px; font-family: var(--font); font-weight: 600;
+  cursor: pointer; border: none; transition: all var(--t); white-space: nowrap; }
+.btn-primary { background: var(--primary); color: #070A12; }
+.btn-primary:hover { filter: brightness(1.1); }
+.btn-green { background: var(--green); color: #070A12; }
+.btn-green:hover { filter: brightness(1.1); }
+.btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border2); }
+.btn-secondary:hover { background: var(--border2); }
+.btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+.btn-ghost:hover { color: var(--text); border-color: var(--border2); }
+.btn:disabled { opacity: .4; cursor: not-allowed; filter: none !important; }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-xs { padding: 3px 8px; font-size: 11px; border-radius: 4px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Editor */
+.editor { width: 100%; min-height: 380px; background: var(--bg); border: 1px solid var(--border2);
+  border-radius: var(--r); color: var(--text); font-family: var(--mono); font-size: 12px;
+  line-height: 1.7; padding: 12px; resize: vertical; outline: none; transition: border-color var(--t); }
+.editor:focus { border-color: var(--primary); }
+
+/* ── Evolution tab ── */
+.evo-setup { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.evo-setup-col {}
+
+.test-case-card { border: 1px solid var(--border2); border-radius: var(--r);
+  overflow: hidden; margin-bottom: 10px; }
+.tc-hdr { padding: 9px 12px; background: var(--surface2);
+  display: flex; align-items: center; justify-content: space-between; }
+.tc-name { font-size: 13px; font-weight: 600; color: var(--heading); }
+.tc-body { padding: 10px 12px; }
+.tc-prompt { font-size: 12px; font-family: var(--mono); color: var(--text);
+  background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+  padding: 6px 8px; margin-bottom: 8px; }
+.tc-validators { display: flex; flex-direction: column; gap: 4px; }
+.validator-row { display: flex; align-items: center; gap: 6px; font-size: 11px;
+  font-family: var(--mono); color: var(--muted); }
+.val-type { color: var(--indigo); }
+.val-val { color: var(--text); }
+
+.evo-config { background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: var(--r); padding: 14px; }
+.evo-config-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.evo-config-label { font-size: 13px; color: var(--text); flex: 1; }
+.rounds-input { background: var(--bg); border: 1px solid var(--border2); border-radius: 4px;
+  color: var(--text); font-family: var(--mono); padding: 5px 8px; width: 60px;
+  font-size: 13px; outline: none; }
+.rounds-input:focus { border-color: var(--primary); }
+
+/* Evolution console */
+.evo-console { background: var(--bg); border: 1px solid var(--border2); border-radius: var(--r);
+  min-height: 280px; max-height: 400px; overflow-y: auto; padding: 12px; font-family: var(--mono);
+  font-size: 12px; line-height: 1.8; }
+.log-line { margin-bottom: 2px; }
+.log-start { color: var(--primary); }
+.log-phase { color: var(--indigo); }
+.log-testing { color: var(--muted); }
+.log-test-result { color: var(--text); }
+.log-proposal { color: var(--amber); }
+.log-keep { color: var(--green); font-weight: 500; }
+.log-revert { color: var(--red); }
+.log-done { color: var(--green); font-weight: 500; }
+.log-converged { color: var(--amber); }
+.log-error { color: var(--red); }
+
+/* Score bar */
+.score-bar-wrap { margin: 14px 0; }
+.score-bar-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 5px; font-family: var(--mono); }
+.score-bar-track { height: 6px; background: var(--border2); border-radius: 3px; overflow: hidden; }
+.score-bar-fill { height: 100%; border-radius: 3px; background: var(--green); transition: width .5s ease; }
+
+/* History table */
+.history-table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--mono); }
+.history-table th { text-align: left; padding: 7px 10px; font-size: 10px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); }
+.history-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); color: var(--text); }
+.history-table tr:last-child td { border-bottom: none; }
+.decision-keep { color: var(--green); }
+.decision-revert { color: var(--red); }
+
+/* Test run results */
+.test-run-result { border: 1px solid var(--border2); border-radius: var(--r); overflow: hidden; margin-bottom: 8px; }
+.trr-hdr { padding: 8px 12px; background: var(--surface2); display: flex; align-items: center; gap: 8px; }
+.trr-name { font-size: 13px; font-weight: 600; flex: 1; }
+.trr-score { font-family: var(--mono); font-size: 12px; }
+.trr-body { padding: 8px 12px; display: flex; flex-direction: column; gap: 3px; }
+.trr-detail { font-size: 11px; font-family: var(--mono); display: flex; gap: 6px; color: var(--muted); }
+.trr-pass { color: var(--green); }
+.trr-fail { color: var(--red); }
+
+/* Spinner */
+.spinner { width: 14px; height: 14px; border: 2px solid transparent;
+  border-top-color: currentColor; border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* ── Notification drawer ── */
+.notif-btn {
+  position: fixed; bottom: 20px; right: 20px; z-index: 100;
+  width: 42px; height: 42px; border-radius: 50%;
+  background: var(--surface2); border: 1px solid var(--border2);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 16px; transition: all var(--t); box-shadow: 0 4px 16px rgba(0,0,0,.4);
+}
+.notif-btn:hover { border-color: var(--primary); }
+.notif-badge {
+  position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px;
+  background: var(--red); border-radius: 9px; font-size: 10px; font-weight: 700;
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  padding: 0 4px;
+}
+.notif-drawer {
+  position: fixed; bottom: 72px; right: 20px; width: 360px; z-index: 100;
+  background: var(--surface); border: 1px solid var(--border2); border-radius: var(--r);
+  box-shadow: 0 8px 32px rgba(0,0,0,.5); overflow: hidden;
+  transform: translateY(10px) scale(.97); opacity: 0;
+  transition: all var(--t); pointer-events: none;
+}
+.notif-drawer.open { transform: translateY(0) scale(1); opacity: 1; pointer-events: all; }
+.notif-drawer-hdr {
+  padding: 10px 14px; background: var(--surface2); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.notif-drawer-title { font-size: 12px; font-weight: 600; color: var(--heading);
+  display: flex; align-items: center; gap: 8px; }
+.notif-clear { font-size: 11px; color: var(--muted); cursor: pointer; }
+.notif-clear:hover { color: var(--text); }
+.notif-list { max-height: 380px; overflow-y: auto; }
+.notif-empty { padding: 20px; text-align: center; color: var(--muted); font-size: 13px; }
+.notif-item {
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  cursor: pointer; transition: background var(--t);
+}
+.notif-item:hover { background: var(--surface2); }
+.notif-item:last-child { border-bottom: none; }
+.notif-item-top { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+.notif-icon { font-size: 13px; flex-shrink: 0; }
+.notif-msg { font-size: 12px; color: var(--text); flex: 1; line-height: 1.4; }
+.notif-time { font-size: 10px; color: var(--muted); font-family: var(--mono); white-space: nowrap; }
+.notif-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+.chip {
+  font-size: 11px; font-family: var(--mono); padding: 2px 7px;
+  border-radius: 4px; font-weight: 600;
+}
+.chip-ok  { background: var(--green-dim); color: var(--green); }
+.chip-warn{ background: var(--amber-dim); color: var(--amber); }
+.chip-bad { background: var(--red-dim);   color: var(--red);   }
+.chip-info{ background: var(--primary-dim); color: var(--primary); }
+
+/* watcher status */
+.watcher-dot { width: 7px; height: 7px; border-radius: 50%;
+  background: var(--muted); display: inline-block; transition: background .4s; }
+.watcher-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+</style>
+</head>
+<body>
+<div class="layout">
+  <header class="topbar">
+    <div class="logo">SKILLS <span>MGR</span></div>
+    <div class="path-badge" id="skills-path">loading...</div>
+    <div class="spacer"></div>
+    <div class="top-stat">共 <b id="total-count">–</b> 个 skills</div>
+    <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">
+      <span class="watcher-dot" id="watcher-dot"></span>
+      <span id="watcher-label">监听中...</span>
+    </div>
+  </header>
+  <div class="main">
+    <aside class="sidebar">
+      <div class="sidebar-hdr">
+        <span>Skills</span>
+        <span id="sidebar-count" style="color:var(--primary)">–</span>
+      </div>
+      <input class="search" type="text" placeholder="搜索..." id="search-input" oninput="filterSkills()">
+      <div id="skill-list"></div>
+    </aside>
+    <main class="detail" id="detail">
+      <div class="empty-state">
+        <div class="empty-icon">⬡</div>
+        <div>从左侧选择一个 skill</div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+let allSkills = [], currentId = null, currentData = null;
+
+// ── API ─────────────────────────────────────────────────────
+async function api(path, opts = {}) {
+  const r = await fetch('/api' + path, { headers: {'Content-Type':'application/json'}, ...opts });
+  return r.json();
+}
+
+// ── Init ────────────────────────────────────────────────────
+async function init() {
+  const cfg = await api('/config');
+  document.getElementById('skills-path').textContent = cfg.skills_path;
+  if (!cfg.exists) document.getElementById('skills-path').style.color = 'var(--red)';
+  await loadSkills();
+}
+
+async function loadSkills() {
+  const data = await api('/skills');
+  allSkills = data.skills;
+  document.getElementById('total-count').textContent = data.total;
+  renderList(allSkills);
+}
+
+// ── Sidebar ──────────────────────────────────────────────────
+function filterSkills() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  renderList(allSkills.filter(s => s.name.toLowerCase().includes(q) || (s.description||'').toLowerCase().includes(q)));
+}
+
+const typeLabel = t => ({verifiable:'可验证',anchor:'锚点型',judgment:'判断型',unknown:'未分类'}[t]||t);
+const scoreColor = s => s>=90?'var(--green)':s>=75?'var(--primary)':s>=60?'var(--amber)':'var(--red)';
+
+function renderList(skills) {
+  document.getElementById('sidebar-count').textContent = skills.length;
+  const sorted = [...skills].sort((a,b) => a.health_score - b.health_score);
+  document.getElementById('skill-list').innerHTML = sorted.map(s => `
+    <div class="skill-item ${s.id===currentId?'active':''}" onclick="selectSkill('${s.id}')" data-id="${s.id}">
+      <div class="si-top">
+        <span class="si-name" title="${s.name}">${s.name}</span>
+        <span class="badge badge-grade-${s.health_grade}">${s.health_grade} ${s.health_score}</span>
+      </div>
+      <div class="si-bot">
+        <span class="badge badge-${s.type}">${typeLabel(s.type)}</span>
+        ${s.has_tests ? '<span class="test-dot" title="有测试用例"></span>' : ''}
+        ${s.issue_count>0 ? `<span style="font-size:11px;color:var(--amber)">⚠ ${s.issue_count}</span>` : ''}
+        <span class="si-date">${s.modified||''}</span>
+      </div>
+    </div>`).join('');
+}
+
+// ── Detail ───────────────────────────────────────────────────
+async function selectSkill(id) {
+  currentId = id;
+  document.querySelectorAll('.skill-item').forEach(el => el.classList.toggle('active', el.dataset.id===id));
+  document.getElementById('detail').innerHTML = `<div class="empty-state"><span class="spinner" style="width:22px;height:22px;border-color:var(--border2);border-top-color:var(--primary)"></span></div>`;
+  const data = await api(`/skills/${id}`);
+  currentData = data;
+  renderDetail(data);
+}
+
+function renderDetail(data) {
+  const h = data.health, r = 29, circ = 2*Math.PI*r;
+  const offset = circ - (h.score/100)*circ;
+  const col = scoreColor(h.score);
+
+  document.getElementById('detail').innerHTML = `
+    <div class="tabs-bar">
+      <div class="tab active" onclick="switchTab('overview',this)">总览</div>
+      <div class="tab" onclick="switchTab('evolution',this)">进化引擎</div>
+      <div class="tab" onclick="switchTab('editor',this)">编辑</div>
+    </div>
+
+    <!-- Overview tab -->
+    <div class="tab-content active" id="tab-overview">
+      <div class="detail-header">
+        <div class="detail-title-block">
+          <div class="detail-name">${data.name}</div>
+          <div class="detail-badges">
+            <span class="badge badge-grade-${h.grade}">健康度 ${h.grade}</span>
+            <span class="badge badge-${data.type}">${typeLabel(data.type)}</span>
+          </div>
+          <div class="detail-desc">${data.description||'<span style="color:var(--muted)">无描述</span>'}</div>
+        </div>
+        <div class="ring">
+          <svg viewBox="0 0 70 70">
+            <circle class="ring-bg" cx="35" cy="35" r="${r}"/>
+            <circle class="ring-fill" cx="35" cy="35" r="${r}"
+              stroke="${col}" stroke-dasharray="${circ}" stroke-dashoffset="${offset}"/>
+          </svg>
+          <div class="ring-text">
+            <span class="ring-num" style="color:${col}">${h.score}</span>
+            <span class="ring-lbl">分</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">结构检查</div>
+        ${h.issues.length===0
+          ? '<div class="no-issues">✓ 无结构问题</div>'
+          : `<div class="issues">${h.issues.map(i=>`
+              <div class="issue ${i.severity}">
+                <div class="issue-dot"></div>
+                <div><div class="issue-msg">${i.message}</div><div class="issue-dim">${i.dimension}</div></div>
+              </div>`).join('')}</div>`}
+      </div>
+
+      <div class="section">
+        <div class="section-title">进化类型</div>
+        <div class="type-grid">
+          ${['verifiable','anchor','judgment'].map(t=>`
+            <div class="type-card ${data.type===t?'sel-'+t:''}" onclick="setType('${t}')">
+              <div class="type-icon">${{verifiable:'⚙',anchor:'⚓',judgment:'👁'}[t]}</div>
+              <div class="type-name">${{verifiable:'可验证型',anchor:'锚点型',judgment:'判断型'}[t]}</div>
+              <div class="type-desc">${{
+                verifiable:'输出可客观验证，支持自动进化',
+                anchor:'需人工审批样本作锚点',
+                judgment:'纯主观判断，只做维护'
+              }[t]}</div>
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">AI 分析</div>
+        <div class="ai-panel">
+          <div class="ai-panel-hdr">
+            <span class="ai-panel-title">✦ 智能诊断</span>
+            <button class="btn btn-primary btn-sm" onclick="runAiAnalysis()" id="ai-btn">运行分析</button>
+          </div>
+          <div class="ai-panel-body" id="ai-body">点击"运行分析"对该 skill 进行深度诊断。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Evolution tab -->
+    <div class="tab-content" id="tab-evolution">
+      <div class="section">
+        <div class="section-title">测试用例</div>
+        <div id="test-cases-area">
+          <div style="color:var(--muted);font-size:13px">加载中...</div>
+        </div>
+        <div class="actions" style="margin-top:10px">
+          <button class="btn btn-secondary btn-sm" onclick="generateTests()" id="gen-tests-btn">✦ AI 自动生成测试用例</button>
+          <button class="btn btn-ghost btn-sm" onclick="runTestsOnly()" id="run-tests-btn">▷ 仅运行测试</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">进化配置</div>
+        <div class="evo-config">
+          <div class="evo-config-row">
+            <span class="evo-config-label">最大轮数</span>
+            <input type="number" class="rounds-input" id="rounds-input" value="5" min="1" max="20">
+          </div>
+          <div class="actions">
+            <button class="btn btn-green" onclick="startEvolution()" id="evo-btn">▶ 开始自动进化</button>
+            <button class="btn btn-secondary btn-sm" onclick="setBaseline()" id="baseline-btn">⚑ 设为基线</button>
+            <button class="btn btn-ghost btn-sm" onclick="loadHistory()" id="history-btn">查看历史</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="evo-console-section" style="display:none">
+        <div class="section-title">进化控制台</div>
+        <div class="evo-console" id="evo-console"></div>
+        <div id="evo-score-bar" class="score-bar-wrap" style="display:none">
+          <div class="score-bar-label">
+            <span>进度</span><span id="evo-score-text">–</span>
+          </div>
+          <div class="score-bar-track"><div class="score-bar-fill" id="evo-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <div class="section" id="history-section" style="display:none">
+        <div class="section-title">进化历史</div>
+        <div id="history-content"></div>
+      </div>
+    </div>
+
+    <!-- Editor tab -->
+    <div class="tab-content" id="tab-editor">
+      <div class="section">
+        <div class="section-title">SKILL.md 内容</div>
+        <textarea class="editor" id="editor-content" spellcheck="false">${escHtml(data.content)}</textarea>
+        <div class="actions" style="margin-top:10px;justify-content:flex-end">
+          <button class="btn btn-ghost btn-sm" onclick="reloadEditor()">重置</button>
+          <button class="btn btn-primary btn-sm" onclick="saveEdit()">保存</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  loadTestCases();
+}
+
+function switchTab(tabId, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-' + tabId).classList.add('active');
+  if (tabId === 'evolution') loadTestCases();
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Type ─────────────────────────────────────────────────────
+async function setType(type) {
+  if (!currentId) return;
+  await api(`/skills/${currentId}/type`, {method:'PUT', body: JSON.stringify({type})});
+  currentData.type = type;
+  renderDetail(currentData);
+  const skill = allSkills.find(s => s.id === currentId);
+  if (skill) { skill.type = type; filterSkills(); }
+}
+
+// ── AI Analysis ───────────────────────────────────────────────
+async function runAiAnalysis() {
+  const btn = document.getElementById('ai-btn');
+  const body = document.getElementById('ai-body');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 分析中...';
+  body.innerHTML = `<span style="color:var(--muted)">正在调用 Claude...</span>`;
+  try {
+    const r = await api(`/skills/${currentId}/ai-analyze`, {method:'POST'});
+    if (r.error) throw new Error(r.error);
+    const typeMap = {verifiable:'可验证型',anchor:'锚点型',judgment:'判断型'};
+    body.innerHTML = `
+      <div class="ai-summary">${r.summary||''}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        建议分类：<span class="badge badge-${r.skill_type}">${typeMap[r.skill_type]||r.skill_type}</span>
+        <span style="font-size:12px;color:var(--muted)">${r.type_reason||''}</span>
+        <button class="btn btn-ghost btn-xs" onclick="setType('${r.skill_type}')">采用</button>
+      </div>
+      ${r.top_issues?.length?`<div class="ai-list-title">主要问题</div><ul class="ai-list">${r.top_issues.map(i=>`<li>${i}</li>`).join('')}</ul>`:''}
+      ${r.top_suggestions?.length?`<div class="ai-list-title">改进建议</div><ul class="ai-list">${r.top_suggestions.map(s=>`<li>${s}</li>`).join('')}</ul>`:''}
+    `;
+    btn.innerHTML = '重新分析';
+  } catch(e) {
+    body.innerHTML = `<span style="color:var(--red)">分析失败: ${e.message}</span>`;
+    btn.innerHTML = '重试';
+  }
+  btn.disabled = false;
+}
+
+// ── Test cases ────────────────────────────────────────────────
+async function loadTestCases() {
+  const area = document.getElementById('test-cases-area');
+  if (!area) return;
+  const data = await api(`/skills/${currentId}/evolve/tests`);
+  if (!data.cases || data.cases.length === 0) {
+    area.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:10px 0">暂无测试用例。点击下方按钮自动生成，或手动添加。</div>`;
+    return;
+  }
+  renderTestCases(data.cases);
+}
+
+function renderTestCases(cases) {
+  const area = document.getElementById('test-cases-area');
+  if (!area) return;
+  area.innerHTML = cases.map(tc => `
+    <div class="test-case-card">
+      <div class="tc-hdr">
+        <span class="tc-name">${tc.name || tc.id}</span>
+        <span style="font-size:11px;font-family:var(--mono);color:var(--muted)">${tc.id}</span>
+      </div>
+      <div class="tc-body">
+        <div class="tc-prompt">${escHtml(tc.prompt)}</div>
+        <div class="tc-validators">
+          ${(tc.validators||[]).map(v=>`
+            <div class="validator-row">
+              <span class="val-type">${v.type}</span>
+              <span>→</span>
+              <span class="val-val">${v.value||v.pattern||v.min||''}</span>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+async function generateTests() {
+  const btn = document.getElementById('gen-tests-btn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 生成中...';
+  const area = document.getElementById('test-cases-area');
+  area.innerHTML = `<div style="color:var(--muted);font-size:13px">Claude 正在分析 skill 并生成测试用例...</div>`;
+  try {
+    const data = await api(`/skills/${currentId}/evolve/generate-tests`, {method:'POST'});
+    if (data.error) throw new Error(data.error);
+    renderTestCases(data.cases);
+    // Update sidebar indicator
+    const skill = allSkills.find(s => s.id === currentId);
+    if (skill) { skill.has_tests = true; filterSkills(); }
+  } catch(e) {
+    area.innerHTML = `<div style="color:var(--red);font-size:13px">生成失败: ${e.message}</div>`;
+  }
+  btn.disabled = false; btn.innerHTML = '✦ AI 自动生成测试用例';
+}
+
+async function runTestsOnly() {
+  const btn = document.getElementById('run-tests-btn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 测试中...';
+  try {
+    const data = await api(`/skills/${currentId}/evolve/run-tests`, {method:'POST'});
+    if (data.error) throw new Error(data.error);
+
+    const area = document.getElementById('test-cases-area');
+    area.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span style="font-size:13px;color:var(--text)">综合分数</span>
+        <span style="font-family:var(--mono);font-size:16px;font-weight:600;color:${scoreColor(data.overall_score*100)}">${(data.overall_score*100).toFixed(0)}%</span>
+      </div>
+      ${data.results.map(r=>`
+        <div class="test-run-result">
+          <div class="trr-hdr">
+            <span class="trr-name">${r.name||r.case_id}</span>
+            <span class="trr-score" style="color:${scoreColor(r.score*100)}">${r.passed}/${r.total} (${(r.score*100).toFixed(0)}%)</span>
+          </div>
+          <div class="trr-body">
+            ${(r.details||[]).map(d=>`
+              <div class="trr-detail">
+                <span class="${d.passed?'trr-pass':'trr-fail'}">${d.passed?'✓':'✗'}</span>
+                <span>${d.reason}</span>
+              </div>`).join('')}
+          </div>
+        </div>`).join('')}
+    `;
+  } catch(e) {
+    alert('测试失败: ' + e.message);
+  }
+  btn.disabled = false; btn.innerHTML = '▷ 仅运行测试';
+}
+
+// ── Evolution ─────────────────────────────────────────────────
+let evoSource = null;
+
+function startEvolution() {
+  if (evoSource) { evoSource.close(); evoSource = null; }
+  const rounds = document.getElementById('rounds-input')?.value || 5;
+  const btn = document.getElementById('evo-btn');
+  const consoleEl = document.getElementById('evo-console');
+  const consoleSection = document.getElementById('evo-console-section');
+  const scoreBar = document.getElementById('evo-score-bar');
+
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 进化中...';
+  consoleSection.style.display = 'block';
+  scoreBar.style.display = 'none';
+  consoleEl.innerHTML = '';
+
+  evoSource = new EventSource(`/api/skills/${currentId}/evolve/start?rounds=${rounds}`);
+
+  evoSource.onmessage = e => {
+    const data = JSON.parse(e.data);
+    appendLog(consoleEl, data);
+
+    if (data.type === 'baseline_done') {
+      updateScoreBar(data.score);
+    }
+    if (data.type === 'round_done' && data.decision === 'keep') {
+      updateScoreBar(data.new_score);
+    }
+    if (data.type === 'done' || data.type === 'error' || data.type === 'converged') {
+      evoSource.close(); evoSource = null;
+      btn.disabled = false; btn.innerHTML = '▶ 开始自动进化';
+      if (data.type === 'done') {
+        updateScoreBar(data.final_score);
+        // Refresh skill health in sidebar
+        loadSkills().then(() => {
+          document.querySelectorAll('.skill-item').forEach(el =>
+            el.classList.toggle('active', el.dataset.id === currentId));
+        });
+      }
+    }
+  };
+
+  evoSource.onerror = () => {
+    appendLog(consoleEl, {type:'error', message:'连接中断'});
+    evoSource.close(); evoSource = null;
+    btn.disabled = false; btn.innerHTML = '▶ 开始自动进化';
+  };
+}
+
+function appendLog(el, data) {
+  const cls = {
+    start:'log-start', phase:'log-phase', testing:'log-testing',
+    test_result:'log-test-result', proposal:'log-proposal',
+    baseline_done:'log-keep', round_start:'log-phase',
+    round_done: data.decision==='keep'?'log-keep':'log-revert',
+    converged:'log-converged', done:'log-done', error:'log-error'
+  }[data.type] || 'log-testing';
+
+  const prefix = {
+    start:'▶', phase:'◈', testing:'  ·', test_result:'  →',
+    proposal:'⟳', baseline_done:'◉', round_start:'◎',
+    round_done: data.decision==='keep'?'✓':'✗',
+    converged:'◈', done:'★', error:'✗'
+  }[data.type] || ' ';
+
+  let text = data.message || '';
+  if (data.type === 'test_result') {
+    text = `${data.name||data.case_id}: ${data.passed}/${data.total} (${(data.score*100).toFixed(0)}%)`;
+  }
+
+  const div = document.createElement('div');
+  div.className = `log-line ${cls}`;
+  div.textContent = `${prefix} ${text}`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function updateScoreBar(score) {
+  const bar = document.getElementById('evo-score-bar');
+  if (!bar) return;
+  bar.style.display = 'block';
+  document.getElementById('evo-bar').style.width = `${score*100}%`;
+  document.getElementById('evo-score-text').textContent = `${(score*100).toFixed(1)}%`;
+  const fill = document.getElementById('evo-bar');
+  fill.style.background = score >= .9 ? 'var(--green)' : score >= .7 ? 'var(--primary)' : 'var(--amber)';
+}
+
+async function loadHistory() {
+  const section = document.getElementById('history-section');
+  const content = document.getElementById('history-content');
+  section.style.display = 'block';
+  content.innerHTML = `<span style="color:var(--muted);font-size:13px">加载中...</span>`;
+  const data = await api(`/skills/${currentId}/evolve/history`);
+
+  if (!data.history || data.history.length === 0) {
+    content.innerHTML = `<div style="color:var(--muted);font-size:13px">暂无进化历史</div>`;
+    return;
+  }
+
+  content.innerHTML = `
+    <table class="history-table">
+      <thead><tr><th>时间</th><th>轮次</th><th>旧分数</th><th>新分数</th><th>决策</th><th>变化</th></tr></thead>
+      <tbody>
+        ${data.history.slice().reverse().map(h=>`
+          <tr>
+            <td>${h.timestamp?.slice(11,19)||'–'}</td>
+            <td>R${h.round}</td>
+            <td>${(h.old_score*100).toFixed(1)}%</td>
+            <td>${(h.new_score*100).toFixed(1)}%</td>
+            <td class="decision-${h.decision}">${h.decision==='keep'?'✓ 保留':'✗ 回滚'}</td>
+            <td style="color:${h.delta>0?'var(--green)':'var(--red)'}">${h.delta>0?'+':''}${(h.delta*100).toFixed(1)}%</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+    ${data.versions?.length ? `
+    <div style="margin-top:14px">
+      <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">版本快照</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${data.versions.map(v=>`
+          <button class="btn btn-ghost btn-xs" onclick="restoreVersion('${v.id}')" title="${v.modified}">
+            ${v.id}
+          </button>`).join('')}
+      </div>
+    </div>` : ''}
+  `;
+}
+
+async function restoreVersion(versionId) {
+  if (!confirm(`恢复到版本 ${versionId}？当前 SKILL.md 将被覆盖。`)) return;
+  const r = await api(`/skills/${currentId}/evolve/restore/${versionId}`, {method:'POST'});
+  if (r.success) {
+    alert('已恢复');
+    selectSkill(currentId);
+  }
+}
+
+// ── Editor ────────────────────────────────────────────────────
+function reloadEditor() {
+  if (currentData) document.getElementById('editor-content').value = currentData.content;
+}
+
+async function saveEdit() {
+  const content = document.getElementById('editor-content').value;
+  await api(`/skills/${currentId}/content`, {method:'PUT', body: JSON.stringify({content})});
+  const data = await api(`/skills/${currentId}`);
+  currentData = data;
+  await loadSkills();
+  document.querySelectorAll('.skill-item').forEach(el =>
+    el.classList.toggle('active', el.dataset.id === currentId));
+  // refresh health in overview tab
+  const h = data.health, r = 29, circ = 2*Math.PI*r;
+  const offset = circ - (h.score/100)*circ;
+  // just re-render to reflect new health
+  renderDetail(data);
+  switchTab('editor', document.querySelectorAll('.tab')[2]);
+}
+
+async function setBaseline() {
+  const btn = document.getElementById('baseline-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 运行中...';
+  try {
+    const data = await api(`/skills/${currentId}/evolve/set-baseline`, {method:'POST'});
+    if (data.error) throw new Error(data.error);
+    const score = (data.score * 100).toFixed(1);
+    btn.innerHTML = `⚑ 基线已设 ${score}%`;
+    setTimeout(() => { btn.innerHTML = '⚑ 设为基线'; btn.disabled = false; }, 3000);
+  } catch(e) {
+    btn.innerHTML = '⚑ 设为基线';
+    btn.disabled = false;
+    alert('失败: ' + e.message);
+  }
+}
+
+init();
+connectNotifications();
+</script>
+
+<!-- ── Notification drawer ── -->
+<div class="notif-btn" onclick="toggleDrawer()" id="notif-btn">
+  🔔
+  <div class="notif-badge" id="notif-badge" style="display:none">0</div>
+</div>
+<div class="notif-drawer" id="notif-drawer">
+  <div class="notif-drawer-hdr">
+    <div class="notif-drawer-title">
+      <span>活动通知</span>
+      <span class="watcher-dot live" style="width:6px;height:6px"></span>
+    </div>
+    <span class="notif-clear" onclick="clearNotifs()">清空</span>
+  </div>
+  <div class="notif-list" id="notif-list">
+    <div class="notif-empty">暂无通知，监听 skill 文件变化中...</div>
+  </div>
+</div>
+
+<script>
+// ── Notification system ───────────────────────────────────────
+let notifications = [];
+let unreadCount = 0;
+let drawerOpen = false;
+let notifSource = null;
+
+function connectNotifications() {
+  if (notifSource) notifSource.close();
+  notifSource = new EventSource('/api/notifications');
+
+  notifSource.onopen = () => {
+    document.getElementById('watcher-dot').classList.add('live');
+    document.getElementById('watcher-label').textContent = '文件监听中';
+  };
+
+  notifSource.onerror = () => {
+    document.getElementById('watcher-dot').classList.remove('live');
+    document.getElementById('watcher-label').textContent = '监听断开';
+    setTimeout(connectNotifications, 3000);
+  };
+
+  notifSource.onmessage = e => {
+    const data = JSON.parse(e.data);
+    if (data.type === 'connected') return;
+    handleNotification(data);
+  };
+}
+
+function handleNotification(data) {
+  const ts = new Date().toLocaleTimeString('zh', {hour12: false});
+
+  const notif = { ...data, ts, id: Date.now() };
+  notifications.unshift(notif);
+  if (notifications.length > 50) notifications.pop();
+
+  if (!drawerOpen) {
+    unreadCount++;
+    updateBadge();
+  }
+
+  renderNotifList();
+
+  // If the affected skill is currently open, refresh its detail
+  if (data.skill_id && data.skill_id === currentId) {
+    if (data.type === 'auto_evolve_end' || data.type === 'test_done') {
+      selectSkill(currentId);
+    }
+    // Stream evo events into the console if evolution tab is visible
+    if (data.source === 'auto_evolve') {
+      const consoleEl = document.getElementById('evo-console');
+      const consoleSection = document.getElementById('evo-console-section');
+      if (consoleEl) {
+        if (consoleSection) consoleSection.style.display = 'block';
+        appendLog(consoleEl, data);
+        if (data.type === 'done') updateScoreBar(data.final_score);
+      }
+    }
+  }
+
+  // Also refresh sidebar scores after evolution ends
+  if (data.type === 'auto_evolve_end') {
+    loadSkills().then(() => {
+      document.querySelectorAll('.skill-item').forEach(el =>
+        el.classList.toggle('active', el.dataset.id === currentId));
+    });
+  }
+}
+
+function notifIcon(type, severity) {
+  if (type === 'file_changed') return '📝';
+  if (type === 'auto_evolve_start') return '⚡';
+  if (type === 'auto_evolve_end') return '✅';
+  if (type === 'test_error') return '❌';
+  if (type === 'round_done') return severity === 'keep' ? '✓' : '✗';
+  if (severity === 'ok') return '✓';
+  if (severity === 'warn') return '⚠';
+  if (severity === 'bad') return '✗';
+  return '◈';
+}
+
+function notifChipClass(severity, delta) {
+  if (severity === 'ok' || delta > 0) return 'chip-ok';
+  if (severity === 'warn') return 'chip-warn';
+  if (severity === 'bad' || (delta !== null && delta < -0.1)) return 'chip-bad';
+  return 'chip-info';
+}
+
+function renderNotifList() {
+  const el = document.getElementById('notif-list');
+  if (notifications.length === 0) {
+    el.innerHTML = '<div class="notif-empty">暂无通知</div>';
+    return;
+  }
+  el.innerHTML = notifications.map(n => {
+    const chips = [];
+    if (n.score !== undefined) {
+      const cls = n.delta > 0 ? 'chip-ok' : n.delta < -0.1 ? 'chip-bad' : n.delta < 0 ? 'chip-warn' : 'chip-info';
+      chips.push(`<span class="chip ${cls}">${(n.score*100).toFixed(1)}%</span>`);
+    }
+    if (n.delta !== null && n.delta !== undefined) {
+      const cls = n.delta > 0 ? 'chip-ok' : n.delta < 0 ? 'chip-bad' : 'chip-info';
+      const sign = n.delta > 0 ? '+' : '';
+      chips.push(`<span class="chip ${cls}">${sign}${(n.delta*100).toFixed(1)}%</span>`);
+    }
+    return `
+      <div class="notif-item" onclick="onNotifClick('${n.skill_id||''}')">
+        <div class="notif-item-top">
+          <span class="notif-icon">${notifIcon(n.type, n.severity)}</span>
+          <span class="notif-msg">${n.message||n.type}</span>
+          <span class="notif-time">${n.ts}</span>
+        </div>
+        ${chips.length ? `<div class="notif-chips">${chips.join('')}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function onNotifClick(skillId) {
+  if (skillId && skillId !== currentId) selectSkill(skillId);
+  if (drawerOpen) toggleDrawer();
+}
+
+function toggleDrawer() {
+  drawerOpen = !drawerOpen;
+  document.getElementById('notif-drawer').classList.toggle('open', drawerOpen);
+  if (drawerOpen) {
+    unreadCount = 0;
+    updateBadge();
+  }
+}
+
+function clearNotifs() {
+  notifications = [];
+  unreadCount = 0;
+  updateBadge();
+  renderNotifList();
+}
+
+function updateBadge() {
+  const badge = document.getElementById('notif-badge');
+  if (unreadCount > 0) {
+    badge.style.display = 'flex';
+    badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+</script>
+</body>
+</html>

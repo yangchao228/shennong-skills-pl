@@ -120,13 +120,70 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .issue.error { background: var(--red-dim); border-color: rgba(248,113,113,.2); }
 .issue.warning { background: var(--amber-dim); border-color: rgba(251,191,36,.2); }
 .issue.info { background: var(--primary-dim); border-color: rgba(56,189,248,.2); }
+.issue.blocking { background: var(--red-dim); border-color: rgba(248,113,113,.2); }
+.issue.risk { background: var(--amber-dim); border-color: rgba(251,191,36,.2); }
+.issue.optimization { background: var(--primary-dim); border-color: rgba(56,189,248,.2); }
 .issue-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
 .issue.error .issue-dot { background: var(--red); }
 .issue.warning .issue-dot { background: var(--amber); }
 .issue.info .issue-dot { background: var(--primary); }
+.issue.blocking .issue-dot { background: var(--red); }
+.issue.risk .issue-dot { background: var(--amber); }
+.issue.optimization .issue-dot { background: var(--primary); }
 .issue-msg { font-size: 13px; }
 .issue-dim { font-size: 11px; color: var(--muted); font-family: var(--mono); }
 .no-issues { padding: 10px; color: var(--green); font-size: 13px; display: flex; gap: 6px; align-items: center; }
+.health-summary { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.health-chip { font-size:11px; font-weight:600; padding:4px 8px; border-radius:999px; }
+.health-chip.blocking { background: var(--red-dim); color: var(--red); }
+.health-chip.risk { background: var(--amber-dim); color: var(--amber); }
+.health-chip.optimization { background: var(--primary-dim); color: var(--primary); }
+.health-explain { font-size:12px; color: var(--muted); line-height:1.6; margin-bottom: 10px; }
+.baseline-strip { display:flex; gap:10px; flex-wrap:wrap; margin: 4px 0 16px; }
+.baseline-card { padding:10px 12px; border-radius: var(--r); border:1px solid var(--border2); background: var(--surface2); min-width: 160px; }
+.baseline-label { font-size:10px; letter-spacing:.08em; text-transform: uppercase; color: var(--muted); margin-bottom:4px; }
+.baseline-value { font-size:13px; color: var(--text); font-family: var(--mono); }
+.summary-grid { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.summary-card { border:1px solid var(--border2); border-radius: var(--r); background: var(--surface2); padding: 12px; }
+.summary-card-title { font-size:11px; letter-spacing:.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.summary-card-body { font-size:13px; color: var(--text); line-height: 1.7; }
+.summary-card-body ul { list-style:none; display:flex; flex-direction:column; gap:6px; }
+.summary-card-body li { display:flex; gap:6px; }
+.summary-card-body li::before { content:'•'; color: var(--primary); }
+.history-toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom: 12px; }
+.select { background: var(--bg); border:1px solid var(--border2); color: var(--text); border-radius: 4px; padding: 6px 8px; font-family: var(--mono); font-size: 12px; }
+.pager { display:flex; gap:8px; align-items:center; justify-content:flex-end; margin-top: 12px; }
+.version-list { display:flex; flex-direction:column; gap:8px; }
+.version-item { border:1px solid var(--border2); background: var(--surface2); border-radius: var(--r); padding: 10px 12px; }
+.version-top { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom: 6px; }
+.version-id { font-family: var(--mono); font-size:12px; color: var(--heading); }
+.version-meta { font-size:11px; color: var(--muted); }
+.version-source { font-size:10px; font-weight:600; padding:2px 6px; border-radius:999px; background: var(--primary-dim); color: var(--primary); }
+.version-source.baseline { background: var(--green-dim); color: var(--green); }
+.version-source.pre-restore { background: var(--amber-dim); color: var(--amber); }
+.version-source.other { background: rgba(75,94,120,.15); color: var(--muted); }
+.version-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top: 8px; }
+.diff-toolbar { display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom: 12px; }
+.diff-summary { font-size:12px; color: var(--muted); }
+.diff-list { display:flex; flex-direction:column; gap:10px; }
+.diff-block { border:1px solid var(--border2); border-radius: var(--r); overflow:hidden; background: var(--surface2); }
+.diff-header { display:flex; justify-content:space-between; gap:8px; align-items:center; padding: 10px 12px; cursor:pointer; }
+.diff-header.added { background: rgba(52,211,153,.08); }
+.diff-header.deleted { background: rgba(248,113,113,.08); }
+.diff-header.modified { background: rgba(251,191,36,.08); }
+.diff-header-left { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.diff-kind { font-size:10px; padding:2px 6px; border-radius:999px; font-weight:600; }
+.diff-kind.added { background: var(--green-dim); color: var(--green); }
+.diff-kind.deleted { background: var(--red-dim); color: var(--red); }
+.diff-kind.modified { background: var(--amber-dim); color: var(--amber); }
+.diff-body { display:none; padding: 10px 12px; border-top: 1px solid var(--border); }
+.diff-block.open .diff-body { display:block; }
+.diff-col-wrap { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.diff-col-title { font-size:10px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+.diff-pre { background: var(--bg); border:1px solid var(--border); border-radius: 4px; padding: 8px; font-family: var(--mono); font-size:12px; line-height:1.6; white-space:pre-wrap; word-break:break-word; color: var(--text); min-height: 60px; }
+@media (max-width: 900px) {
+  .summary-grid, .diff-col-wrap { grid-template-columns: 1fr; }
+}
 
 /* Type cards */
 .type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -375,6 +432,7 @@ function filterSkills() {
 
 const typeLabel = t => ({verifiable:'可验证',anchor:'锚点型',judgment:'判断型',unknown:'未分类'}[t]||t);
 const scoreColor = s => s>=90?'var(--green)':s>=75?'var(--primary)':s>=60?'var(--amber)':'var(--red)';
+const healthStatusLabel = s => ({blocking:'阻断项',risk:'风险项',healthy:'结构健康'}[s] || '结构健康');
 
 function renderList(skills) {
   document.getElementById('sidebar-count').textContent = skills.length;
@@ -388,7 +446,9 @@ function renderList(skills) {
       <div class="si-bot">
         <span class="badge badge-${s.type}">${typeLabel(s.type)}</span>
         ${s.has_tests ? '<span class="test-dot" title="有测试用例"></span>' : ''}
-        ${s.issue_count>0 ? `<span style="font-size:11px;color:var(--amber)">⚠ ${s.issue_count}</span>` : ''}
+        ${(s.blocking_count||0)>0 ? `<span style="font-size:11px;color:var(--red)">阻断 ${s.blocking_count}</span>` :
+          (s.risk_count||0)>0 ? `<span style="font-size:11px;color:var(--amber)">风险 ${s.risk_count}</span>` :
+          (s.optimization_count||0)>0 ? `<span style="font-size:11px;color:var(--primary)">优化 ${s.optimization_count}</span>` : ''}
         <span class="si-date">${s.modified||''}</span>
       </div>
     </div>`).join('');
@@ -408,15 +468,36 @@ function renderDetail(data) {
   const h = data.health, r = 29, circ = 2*Math.PI*r;
   const offset = circ - (h.score/100)*circ;
   const col = scoreColor(h.score);
+  const groups = h.groups || {blocking:[], risk:[], optimization:[]};
+  const counts = h.counts || {blocking:0, risk:0, optimization:0};
+  const baseline = data.baseline || { exists:false };
+  const summary = data.overview_summary || { summary:'', usage:[], recommended_scenarios:[], cautions:[] };
+  const overviewText = counts.blocking > 0
+    ? '这些是会直接影响 skill 可用性或按文档执行会失败的问题，建议优先修。'
+    : counts.risk > 0
+      ? '这些问题通常不阻断当前使用，但会影响触发稳定性、维护成本或自动进化质量。'
+      : counts.optimization > 0
+        ? '当前可以正常使用，下面主要是便于后续维护和复用的优化建议。'
+        : '当前没有发现明显结构问题，可以直接使用。';
+  const renderIssueGroup = (title, kind, items) => items.length === 0 ? '' : `
+    <div class="section" style="margin-top:12px">
+      <div class="section-title">${title}</div>
+      <div class="issues">${items.map(i=>`
+        <div class="issue ${kind}">
+          <div class="issue-dot"></div>
+          <div>
+            <div class="issue-msg">${i.message}</div>
+            <div class="issue-dim">${i.dimension} · ${i.impact}</div>
+          </div>
+        </div>`).join('')}</div>
+    </div>`;
 
   document.getElementById('detail').innerHTML = `
     <div class="tabs-bar">
       <div class="tab active" onclick="switchTab('overview',this)">总览</div>
-      <div class="tab" onclick="switchTab('evolution',this)">进化引擎</div>
-      <div class="tab" onclick="switchTab('editor',this)">编辑</div>
+      <div class="tab" onclick="switchTab('evolution',this)">版本与测试</div>
     </div>
 
-    <!-- Overview tab -->
     <div class="tab-content active" id="tab-overview">
       <div class="detail-header">
         <div class="detail-title-block">
@@ -440,15 +521,54 @@ function renderDetail(data) {
         </div>
       </div>
 
+      <div class="baseline-strip">
+        <div class="baseline-card">
+          <div class="baseline-label">当前基线时间</div>
+          <div class="baseline-value">${baseline.exists ? (baseline.set_at || '–').slice(0, 19).replace('T',' ') : '未设置'}</div>
+        </div>
+        <div class="baseline-card">
+          <div class="baseline-label">当前基线分数</div>
+          <div class="baseline-value">${baseline.score != null ? `${(baseline.score * 100).toFixed(1)}%` : '未设置'}</div>
+        </div>
+      </div>
+
       <div class="section">
         <div class="section-title">结构检查</div>
-        ${h.issues.length===0
+        <div class="health-summary">
+          <span class="health-chip blocking">阻断 ${counts.blocking}</span>
+          <span class="health-chip risk">风险 ${counts.risk}</span>
+          <span class="health-chip optimization">优化 ${counts.optimization}</span>
+        </div>
+        <div class="health-explain">${overviewText}</div>
+        ${counts.blocking===0 && counts.risk===0 && counts.optimization===0
           ? '<div class="no-issues">✓ 无结构问题</div>'
-          : `<div class="issues">${h.issues.map(i=>`
-              <div class="issue ${i.severity}">
-                <div class="issue-dot"></div>
-                <div><div class="issue-msg">${i.message}</div><div class="issue-dim">${i.dimension}</div></div>
-              </div>`).join('')}</div>`}
+          : `
+            ${renderIssueGroup('阻断项', 'blocking', groups.blocking || [])}
+            ${renderIssueGroup('风险项', 'risk', groups.risk || [])}
+            ${renderIssueGroup('优化项', 'optimization', groups.optimization || [])}
+          `}
+      </div>
+
+      <div class="section">
+        <div class="section-title">摘要</div>
+        <div class="actions" style="margin-bottom:10px">
+          <button class="btn btn-ghost btn-sm" onclick="regenerateSummary()" id="summary-btn">重新生成摘要</button>
+        </div>
+        <div class="detail-desc" style="margin-bottom:12px">${summary.summary || '<span style="color:var(--muted)">暂无摘要</span>'}</div>
+        <div class="summary-grid">
+          <div class="summary-card">
+            <div class="summary-card-title">如何使用</div>
+            <div class="summary-card-body">${renderSummaryList(summary.usage)}</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-card-title">推荐使用场景</div>
+            <div class="summary-card-body">${renderSummaryList(summary.recommended_scenarios)}</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-card-title">注意事项</div>
+            <div class="summary-card-body">${renderSummaryList(summary.cautions)}</div>
+          </div>
+        </div>
       </div>
 
       <div class="section">
@@ -474,12 +594,11 @@ function renderDetail(data) {
             <span class="ai-panel-title">✦ 智能诊断</span>
             <button class="btn btn-primary btn-sm" onclick="runAiAnalysis()" id="ai-btn">运行分析</button>
           </div>
-          <div class="ai-panel-body" id="ai-body">点击"运行分析"对该 skill 进行深度诊断。</div>
+          <div class="ai-panel-body" id="ai-body">点击“运行分析”对该 skill 进行诊断。</div>
         </div>
       </div>
     </div>
 
-    <!-- Evolution tab -->
     <div class="tab-content" id="tab-evolution">
       <div class="section">
         <div class="section-title">测试用例</div>
@@ -488,51 +607,30 @@ function renderDetail(data) {
         </div>
         <div class="actions" style="margin-top:10px">
           <button class="btn btn-secondary btn-sm" onclick="generateTests()" id="gen-tests-btn">✦ AI 自动生成测试用例</button>
-          <button class="btn btn-ghost btn-sm" onclick="runTestsOnly()" id="run-tests-btn">▷ 仅运行测试</button>
+          <button class="btn btn-ghost btn-sm" onclick="runTestsOnly()" id="run-tests-btn">▷ 运行测试</button>
         </div>
       </div>
 
       <div class="section">
-        <div class="section-title">进化配置</div>
+        <div class="section-title">基线操作</div>
         <div class="evo-config">
-          <div class="evo-config-row">
-            <span class="evo-config-label">最大轮数</span>
-            <input type="number" class="rounds-input" id="rounds-input" value="5" min="1" max="20">
-          </div>
           <div class="actions">
-            <button class="btn btn-green" onclick="startEvolution()" id="evo-btn">▶ 开始自动进化</button>
-            <button class="btn btn-secondary btn-sm" onclick="setBaseline()" id="baseline-btn">⚑ 设为基线</button>
+            <button class="btn btn-secondary btn-sm" onclick="setBaseline()" id="baseline-btn">⚑ 保存为基线</button>
+            <button class="btn btn-ghost btn-sm" onclick="restoreBaseline()" id="restore-baseline-btn" ${baseline.exists ? '' : 'disabled'}>↺ 恢复到基线</button>
+            <button class="btn btn-ghost btn-sm" onclick="loadDiff()" id="diff-btn" ${baseline.exists ? '' : 'disabled'}>查看 Diff</button>
             <button class="btn btn-ghost btn-sm" onclick="loadHistory()" id="history-btn">查看历史</button>
           </div>
         </div>
       </div>
 
-      <div class="section" id="evo-console-section" style="display:none">
-        <div class="section-title">进化控制台</div>
-        <div class="evo-console" id="evo-console"></div>
-        <div id="evo-score-bar" class="score-bar-wrap" style="display:none">
-          <div class="score-bar-label">
-            <span>进度</span><span id="evo-score-text">–</span>
-          </div>
-          <div class="score-bar-track"><div class="score-bar-fill" id="evo-bar" style="width:0%"></div></div>
-        </div>
+      <div class="section" id="diff-section" style="display:none">
+        <div class="section-title">当前版本与基线 Diff</div>
+        <div id="diff-content"></div>
       </div>
 
       <div class="section" id="history-section" style="display:none">
-        <div class="section-title">进化历史</div>
+        <div class="section-title">版本历史</div>
         <div id="history-content"></div>
-      </div>
-    </div>
-
-    <!-- Editor tab -->
-    <div class="tab-content" id="tab-editor">
-      <div class="section">
-        <div class="section-title">SKILL.md 内容</div>
-        <textarea class="editor" id="editor-content" spellcheck="false">${escHtml(data.content)}</textarea>
-        <div class="actions" style="margin-top:10px;justify-content:flex-end">
-          <button class="btn btn-ghost btn-sm" onclick="reloadEditor()">重置</button>
-          <button class="btn btn-primary btn-sm" onclick="saveEdit()">保存</button>
-        </div>
       </div>
     </div>
   `;
@@ -549,7 +647,27 @@ function switchTab(tabId, el) {
 }
 
 function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderSummaryList(items) {
+  if (!items || items.length === 0) return '<span style="color:var(--muted)">暂无</span>';
+  return `<ul>${items.map(item => `<li>${escHtml(item)}</li>`).join('')}</ul>`;
+}
+
+function skillPrefKey(id) {
+  return `skills-mgr:${id}:prefs`;
+}
+
+function loadSkillPrefs(id) {
+  try { return JSON.parse(localStorage.getItem(skillPrefKey(id)) || '{}'); }
+  catch { return {}; }
+}
+
+function saveSkillPrefs(id, patch) {
+  const next = { ...loadSkillPrefs(id), ...patch };
+  localStorage.setItem(skillPrefKey(id), JSON.stringify(next));
+  return next;
 }
 
 // ── Type ─────────────────────────────────────────────────────
@@ -567,7 +685,7 @@ async function runAiAnalysis() {
   const btn = document.getElementById('ai-btn');
   const body = document.getElementById('ai-body');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 分析中...';
-  body.innerHTML = `<span style="color:var(--muted)">正在调用 Claude...</span>`;
+  body.innerHTML = `<span style="color:var(--muted)">正在调用当前可用模型...</span>`;
   try {
     const r = await api(`/skills/${currentId}/ai-analyze`, {method:'POST'});
     if (r.error) throw new Error(r.error);
@@ -629,7 +747,7 @@ async function generateTests() {
   const btn = document.getElementById('gen-tests-btn');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 生成中...';
   const area = document.getElementById('test-cases-area');
-  area.innerHTML = `<div style="color:var(--muted);font-size:13px">Claude 正在分析 skill 并生成测试用例...</div>`;
+  area.innerHTML = `<div style="color:var(--muted);font-size:13px">当前模型正在分析 skill 并生成测试用例...</div>`;
   try {
     const data = await api(`/skills/${currentId}/evolve/generate-tests`, {method:'POST'});
     if (data.error) throw new Error(data.error);
@@ -649,12 +767,16 @@ async function runTestsOnly() {
   try {
     const data = await api(`/skills/${currentId}/evolve/run-tests`, {method:'POST'});
     if (data.error) throw new Error(data.error);
+    currentData.last_test = { score: data.overall_score, results: data.results };
+    currentData.delta_from_baseline = data.delta_from_baseline;
 
     const area = document.getElementById('test-cases-area');
     area.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
         <span style="font-size:13px;color:var(--text)">综合分数</span>
         <span style="font-family:var(--mono);font-size:16px;font-weight:600;color:${scoreColor(data.overall_score*100)}">${(data.overall_score*100).toFixed(0)}%</span>
+        ${data.baseline_score != null ? `<span style="font-size:12px;color:var(--muted)">基线 ${(data.baseline_score*100).toFixed(0)}%</span>` : ''}
+        ${data.delta_from_baseline != null ? `<span style="font-size:12px;color:${data.delta_from_baseline >= 0 ? 'var(--green)' : 'var(--red)'}">${data.delta_from_baseline > 0 ? '+' : ''}${(data.delta_from_baseline*100).toFixed(1)}%</span>` : ''}
       </div>
       ${data.results.map(r=>`
         <div class="test-run-result">
@@ -674,94 +796,7 @@ async function runTestsOnly() {
   } catch(e) {
     alert('测试失败: ' + e.message);
   }
-  btn.disabled = false; btn.innerHTML = '▷ 仅运行测试';
-}
-
-// ── Evolution ─────────────────────────────────────────────────
-let evoSource = null;
-
-function startEvolution() {
-  if (evoSource) { evoSource.close(); evoSource = null; }
-  const rounds = document.getElementById('rounds-input')?.value || 5;
-  const btn = document.getElementById('evo-btn');
-  const consoleEl = document.getElementById('evo-console');
-  const consoleSection = document.getElementById('evo-console-section');
-  const scoreBar = document.getElementById('evo-score-bar');
-
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 进化中...';
-  consoleSection.style.display = 'block';
-  scoreBar.style.display = 'none';
-  consoleEl.innerHTML = '';
-
-  evoSource = new EventSource(`/api/skills/${currentId}/evolve/start?rounds=${rounds}`);
-
-  evoSource.onmessage = e => {
-    const data = JSON.parse(e.data);
-    appendLog(consoleEl, data);
-
-    if (data.type === 'baseline_done') {
-      updateScoreBar(data.score);
-    }
-    if (data.type === 'round_done' && data.decision === 'keep') {
-      updateScoreBar(data.new_score);
-    }
-    if (data.type === 'done' || data.type === 'error' || data.type === 'converged') {
-      evoSource.close(); evoSource = null;
-      btn.disabled = false; btn.innerHTML = '▶ 开始自动进化';
-      if (data.type === 'done') {
-        updateScoreBar(data.final_score);
-        // Refresh skill health in sidebar
-        loadSkills().then(() => {
-          document.querySelectorAll('.skill-item').forEach(el =>
-            el.classList.toggle('active', el.dataset.id === currentId));
-        });
-      }
-    }
-  };
-
-  evoSource.onerror = () => {
-    appendLog(consoleEl, {type:'error', message:'连接中断'});
-    evoSource.close(); evoSource = null;
-    btn.disabled = false; btn.innerHTML = '▶ 开始自动进化';
-  };
-}
-
-function appendLog(el, data) {
-  const cls = {
-    start:'log-start', phase:'log-phase', testing:'log-testing',
-    test_result:'log-test-result', proposal:'log-proposal',
-    baseline_done:'log-keep', round_start:'log-phase',
-    round_done: data.decision==='keep'?'log-keep':'log-revert',
-    converged:'log-converged', done:'log-done', error:'log-error'
-  }[data.type] || 'log-testing';
-
-  const prefix = {
-    start:'▶', phase:'◈', testing:'  ·', test_result:'  →',
-    proposal:'⟳', baseline_done:'◉', round_start:'◎',
-    round_done: data.decision==='keep'?'✓':'✗',
-    converged:'◈', done:'★', error:'✗'
-  }[data.type] || ' ';
-
-  let text = data.message || '';
-  if (data.type === 'test_result') {
-    text = `${data.name||data.case_id}: ${data.passed}/${data.total} (${(data.score*100).toFixed(0)}%)`;
-  }
-
-  const div = document.createElement('div');
-  div.className = `log-line ${cls}`;
-  div.textContent = `${prefix} ${text}`;
-  el.appendChild(div);
-  el.scrollTop = el.scrollHeight;
-}
-
-function updateScoreBar(score) {
-  const bar = document.getElementById('evo-score-bar');
-  if (!bar) return;
-  bar.style.display = 'block';
-  document.getElementById('evo-bar').style.width = `${score*100}%`;
-  document.getElementById('evo-score-text').textContent = `${(score*100).toFixed(1)}%`;
-  const fill = document.getElementById('evo-bar');
-  fill.style.background = score >= .9 ? 'var(--green)' : score >= .7 ? 'var(--primary)' : 'var(--amber)';
+  btn.disabled = false; btn.innerHTML = '▷ 运行测试';
 }
 
 async function loadHistory() {
@@ -771,37 +806,16 @@ async function loadHistory() {
   content.innerHTML = `<span style="color:var(--muted);font-size:13px">加载中...</span>`;
   const data = await api(`/skills/${currentId}/evolve/history`);
 
-  if (!data.history || data.history.length === 0) {
-    content.innerHTML = `<div style="color:var(--muted);font-size:13px">暂无进化历史</div>`;
+  const versions = data.versions || [];
+  currentData.version_history = versions;
+  if (versions.length === 0) {
+    content.innerHTML = `<div style="color:var(--muted);font-size:13px">暂无版本历史</div>`;
     return;
   }
-
-  content.innerHTML = `
-    <table class="history-table">
-      <thead><tr><th>时间</th><th>轮次</th><th>旧分数</th><th>新分数</th><th>决策</th><th>变化</th></tr></thead>
-      <tbody>
-        ${data.history.slice().reverse().map(h=>`
-          <tr>
-            <td>${h.timestamp?.slice(11,19)||'–'}</td>
-            <td>R${h.round}</td>
-            <td>${(h.old_score*100).toFixed(1)}%</td>
-            <td>${(h.new_score*100).toFixed(1)}%</td>
-            <td class="decision-${h.decision}">${h.decision==='keep'?'✓ 保留':'✗ 回滚'}</td>
-            <td style="color:${h.delta>0?'var(--green)':'var(--red)'}">${h.delta>0?'+':''}${(h.delta*100).toFixed(1)}%</td>
-          </tr>`).join('')}
-      </tbody>
-    </table>
-    ${data.versions?.length ? `
-    <div style="margin-top:14px">
-      <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">版本快照</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px">
-        ${data.versions.map(v=>`
-          <button class="btn btn-ghost btn-xs" onclick="restoreVersion('${v.id}')" title="${v.modified}">
-            ${v.id}
-          </button>`).join('')}
-      </div>
-    </div>` : ''}
-  `;
+  const prefs = loadSkillPrefs(currentId);
+  const pageSize = Number(prefs.historyPageSize || 20);
+  const filter = prefs.historyFilter || 'all';
+  renderHistoryContent(versions, 1, pageSize, filter);
 }
 
 async function restoreVersion(versionId) {
@@ -813,27 +827,6 @@ async function restoreVersion(versionId) {
   }
 }
 
-// ── Editor ────────────────────────────────────────────────────
-function reloadEditor() {
-  if (currentData) document.getElementById('editor-content').value = currentData.content;
-}
-
-async function saveEdit() {
-  const content = document.getElementById('editor-content').value;
-  await api(`/skills/${currentId}/content`, {method:'PUT', body: JSON.stringify({content})});
-  const data = await api(`/skills/${currentId}`);
-  currentData = data;
-  await loadSkills();
-  document.querySelectorAll('.skill-item').forEach(el =>
-    el.classList.toggle('active', el.dataset.id === currentId));
-  // refresh health in overview tab
-  const h = data.health, r = 29, circ = 2*Math.PI*r;
-  const offset = circ - (h.score/100)*circ;
-  // just re-render to reflect new health
-  renderDetail(data);
-  switchTab('editor', document.querySelectorAll('.tab')[2]);
-}
-
 async function setBaseline() {
   const btn = document.getElementById('baseline-btn');
   btn.disabled = true;
@@ -843,16 +836,185 @@ async function setBaseline() {
     if (data.error) throw new Error(data.error);
     const score = (data.score * 100).toFixed(1);
     btn.innerHTML = `⚑ 基线已设 ${score}%`;
-    setTimeout(() => { btn.innerHTML = '⚑ 设为基线'; btn.disabled = false; }, 3000);
+    await selectSkill(currentId);
+    setTimeout(() => {
+      const nextBtn = document.getElementById('baseline-btn');
+      if (nextBtn) { nextBtn.innerHTML = '⚑ 保存为基线'; nextBtn.disabled = false; }
+    }, 3000);
   } catch(e) {
-    btn.innerHTML = '⚑ 设为基线';
+    btn.innerHTML = '⚑ 保存为基线';
     btn.disabled = false;
     alert('失败: ' + e.message);
   }
 }
 
+async function restoreBaseline() {
+  const btn = document.getElementById('restore-baseline-btn');
+  if (!btn || btn.disabled) return;
+  if (!confirm('恢复到基线会直接覆盖当前本地 SKILL.md，是否继续？')) return;
+  btn.disabled = true;
+  try {
+    const data = await api(`/skills/${currentId}/baseline/restore`, {method:'POST'});
+    if (data.error) throw new Error(data.error);
+    await selectSkill(currentId);
+  } catch (e) {
+    alert('恢复失败: ' + e.message);
+    btn.disabled = false;
+  }
+}
+
+async function regenerateSummary() {
+  const btn = document.getElementById('summary-btn');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 生成中...';
+  try {
+    const data = await api(`/skills/${currentId}/summary/regenerate`, {method:'POST'});
+    if (data.error) throw new Error(data.error);
+    currentData.overview_summary = data.summary;
+    renderDetail(currentData);
+  } catch (e) {
+    alert('摘要生成失败: ' + e.message);
+    btn.disabled = false;
+    btn.innerHTML = '重新生成摘要';
+  }
+}
+
+function historySourceClass(source) {
+  return source === 'baseline' ? 'baseline' : source === 'pre-restore' ? 'pre-restore' : 'other';
+}
+
+function historySourceLabel(source) {
+  return ({baseline:'基线', 'pre-restore':'pre-restore'}[source] || '其他');
+}
+
+function getFilteredVersions(versions, filter) {
+  if (filter === 'baseline') return versions.filter(v => v.source === 'baseline');
+  if (filter === 'pre-restore') return versions.filter(v => v.source === 'pre-restore');
+  if (filter === 'other') return versions.filter(v => !['baseline','pre-restore'].includes(v.source));
+  return versions;
+}
+
+function renderHistoryContent(versions, page, pageSize, filter) {
+  const content = document.getElementById('history-content');
+  if (!content) return;
+  const filtered = getFilteredVersions(versions, filter);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const items = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  saveSkillPrefs(currentId, { historyPage: safePage, historyPageSize: pageSize, historyFilter: filter });
+
+  content.innerHTML = `
+    <div class="history-toolbar">
+      <select class="select" id="history-filter" onchange="onHistoryFilterChange()">
+        ${['all','baseline','pre-restore','other'].map(v => `<option value="${v}" ${filter===v?'selected':''}>${({all:'全部', baseline:'基线', 'pre-restore':'pre-restore', other:'其他'}[v])}</option>`).join('')}
+      </select>
+      <select class="select" id="history-size" onchange="onHistorySizeChange()">
+        ${[10,20,50,100].map(v => `<option value="${v}" ${pageSize===v?'selected':''}>每页 ${v}</option>`).join('')}
+      </select>
+    </div>
+    <div class="version-list">
+      ${items.map(v => `
+        <div class="version-item">
+          <div class="version-top">
+            <span class="version-source ${historySourceClass(v.source)}">${historySourceLabel(v.source)}</span>
+            ${v.is_baseline ? '<span class="health-chip optimization">当前基线</span>' : ''}
+            <span class="version-id">${v.id}</span>
+          </div>
+          <div class="version-meta">${(v.created_at || '').slice(0,19).replace('T',' ')} · ${v.score != null ? `${(v.score * 100).toFixed(1)}%` : '无分数'}</div>
+          <div class="version-actions">
+            <button class="btn btn-ghost btn-xs" onclick="restoreVersion('${v.id}')">恢复为当前版本</button>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div class="pager">
+      <button class="btn btn-ghost btn-xs" onclick="changeHistoryPage(-1)" ${safePage<=1?'disabled':''}>上一页</button>
+      <span class="version-meta">第 ${safePage} / ${totalPages} 页</span>
+      <button class="btn btn-ghost btn-xs" onclick="changeHistoryPage(1)" ${safePage>=totalPages?'disabled':''}>下一页</button>
+    </div>
+  `;
+}
+
+function onHistoryFilterChange() {
+  renderHistoryContent(currentData.version_history || [], 1, Number(document.getElementById('history-size').value), document.getElementById('history-filter').value);
+}
+
+function onHistorySizeChange() {
+  renderHistoryContent(currentData.version_history || [], 1, Number(document.getElementById('history-size').value), document.getElementById('history-filter').value);
+}
+
+function changeHistoryPage(delta) {
+  const prefs = loadSkillPrefs(currentId);
+  renderHistoryContent(currentData.version_history || [], (prefs.historyPage || 1) + delta, prefs.historyPageSize || 20, prefs.historyFilter || 'all');
+}
+
+async function loadDiff() {
+  const section = document.getElementById('diff-section');
+  const content = document.getElementById('diff-content');
+  section.style.display = 'block';
+  content.innerHTML = `<div style="color:var(--muted);font-size:13px">加载中...</div>`;
+  try {
+    const data = await api(`/skills/${currentId}/baseline/diff`);
+    if (data.error) throw new Error(data.error);
+    const prefs = loadSkillPrefs(currentId);
+    currentData.diff_data = data;
+    renderDiffContent(data, prefs.diffExpandAll || false);
+  } catch (e) {
+    content.innerHTML = `<div style="color:var(--red);font-size:13px">Diff 加载失败: ${e.message}</div>`;
+  }
+}
+
+function renderDiffContent(data, expandAll) {
+  const content = document.getElementById('diff-content');
+  const blocks = data.blocks || [];
+  saveSkillPrefs(currentId, { diffExpandAll: expandAll });
+  if (blocks.length === 0) {
+    content.innerHTML = `<div class="diff-summary">当前版本与基线没有差异。</div>`;
+    return;
+  }
+  content.innerHTML = `
+    <div class="diff-toolbar">
+      <div class="diff-summary">新增 ${data.summary.added} · 删除 ${data.summary.deleted} · 修改 ${data.summary.modified}</div>
+      <div class="actions">
+        <button class="btn btn-ghost btn-xs" onclick="renderDiffContent(currentData.diff_data, true)">全部展开</button>
+        <button class="btn btn-ghost btn-xs" onclick="renderDiffContent(currentData.diff_data, false)">全部收起</button>
+      </div>
+    </div>
+    <div class="diff-list">
+      ${blocks.map((b, idx) => {
+        const open = expandAll || b.type === 'modified';
+        return `<div class="diff-block ${open ? 'open' : ''}" id="diff-${idx}">
+          <div class="diff-header ${b.type}" onclick="toggleDiffBlock(${idx})">
+            <div class="diff-header-left">
+              <span class="diff-kind ${b.type}">${({added:'新增', deleted:'删除', modified:'修改'}[b.type])}</span>
+              <span class="version-meta">影响 ${b.line_count} 行</span>
+            </div>
+            <span class="version-meta">旧 ${b.old_start}-${b.old_end || b.old_start} / 新 ${b.new_start}-${b.new_end || b.new_start}</span>
+          </div>
+          <div class="diff-body">
+            <div class="diff-col-wrap">
+              <div>
+                <div class="diff-col-title">基线版本</div>
+                <div class="diff-pre">${escHtml((b.old_lines || []).join('\n') || '∅')}</div>
+              </div>
+              <div>
+                <div class="diff-col-title">当前版本</div>
+                <div class="diff-pre">${escHtml((b.new_lines || []).join('\n') || '∅')}</div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+function toggleDiffBlock(idx) {
+  const el = document.getElementById(`diff-${idx}`);
+  if (el) el.classList.toggle('open');
+}
+
 init();
-connectNotifications();
 </script>
 
 <!-- ── Notification drawer ── -->
@@ -1020,6 +1182,8 @@ function updateBadge() {
     badge.style.display = 'none';
   }
 }
+
+connectNotifications();
 </script>
 </body>
 </html>

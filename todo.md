@@ -102,3 +102,23 @@
 - 页面级验证发现并修复 `connectNotifications is not defined`
 - 已确认页面可渲染 32 个 skill，点击 skill 后显示 `总览`、`版本与测试`
 - 已确认文件监听状态显示为 `文件监听中`，新页面无新增 console error
+
+## 2026-05-25 推送与部署 smoke test
+
+1. 推送本地领先远端的基线工作流提交
+2. 用真实 skills 目录启动本地服务
+3. 验证核心 API 与页面主路径
+4. 修复启动脚本在空 pip 参数下的 Bash 兼容问题
+5. 提交并推送本次修复
+
+### Review
+
+- 已将 `5534bf6 feat: add skills manager baseline workflow` 推送到 GitHub `main`
+- 发现 `scripts/deploy.sh` 在 macOS Bash + `set -u` 下，空 `pip_args` 展开会触发 `unbound variable`
+- 已修复空 pip 参数分支，避免默认部署路径直接失败
+- 已验证 `bash -n scripts/deploy.sh`、`python3 -m py_compile app.py`、`./.venv/bin/python -m py_compile app.py`
+- 已以前台方式启动服务到 `http://127.0.0.1:17989`，`SKILLS_PATH=/Users/yangchao/.codex/skills`
+- 已验证 `/api/config` 返回 `200`，`/api/skills` 返回 20 个 skill
+- 已用浏览器验证页面渲染、skill 点击、`版本与测试` 标签切换和基线操作区展示
+- 浏览器 console 未发现 error/warning
+- 当前环境下 Browser 截图接口超时，但 DOM 与交互 smoke test 已通过

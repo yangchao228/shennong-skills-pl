@@ -83,8 +83,13 @@ install_deps() {
     pip_args+=(--trusted-host "$PIP_TRUSTED_HOST")
   fi
 
-  "$VENV_DIR/bin/pip" install "${pip_args[@]}" --upgrade pip
-  "$VENV_DIR/bin/pip" install "${pip_args[@]}" -r "$ROOT_DIR/requirements.txt"
+  if [[ ${#pip_args[@]} -gt 0 ]]; then
+    "$VENV_DIR/bin/pip" install "${pip_args[@]}" --upgrade pip
+    "$VENV_DIR/bin/pip" install "${pip_args[@]}" -r "$ROOT_DIR/requirements.txt"
+  else
+    "$VENV_DIR/bin/pip" install --upgrade pip
+    "$VENV_DIR/bin/pip" install -r "$ROOT_DIR/requirements.txt"
+  fi
 }
 
 is_running() {

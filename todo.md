@@ -221,3 +221,21 @@
 - 已验证候选 Diff、候选应用和 `pre-apply-candidate` 快照
 - 已验证写保护自动进化只保存 `evolution-candidate`，不覆盖 `SKILL.md`
 - 已集成 `node --check` 前端内联 JS 语法检查
+
+## 2026-05-27 最小 CI
+
+1. 新增 GitHub Actions smoke workflow
+2. 安装 Python 依赖
+3. 执行 Python 和部署脚本语法检查
+4. 执行本地 smoke test
+5. 本地验证 workflow YAML 和 smoke 命令
+
+### Review
+
+- 已新增 `.github/workflows/smoke.yml`
+- CI 在 push 到 `main` 和 pull request 时运行
+- CI 使用 Python 3.11
+- CI 执行 `python -m py_compile app.py scripts/smoke_local.py`
+- CI 执行 `bash -n scripts/deploy.sh`
+- CI 执行 `python scripts/smoke_local.py`
+- 已本地验证 workflow YAML 可解析

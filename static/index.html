@@ -401,7 +401,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 </div>
 
 <script>
-let allSkills = [], currentId = null, currentData = null;
+let allSkills = [], currentId = null, currentData = null, currentDiffOptions = {};
 
 // ── API ─────────────────────────────────────────────────────
 async function api(path, opts = {}) {
@@ -839,6 +839,44 @@ async function restoreVersion(versionId) {
   }
 }
 
+async function showCandidateDiff(versionId) {
+  const section = document.getElementById('diff-section');
+  const content = document.getElementById('diff-content');
+  section.style.display = 'block';
+  content.innerHTML = `<div style="color:var(--muted);font-size:13px">加载候选 Diff...</div>`;
+  try {
+    const data = await api(`/skills/${currentId}/evolve/candidate/${versionId}/diff`);
+    if (data.error) throw new Error(data.error);
+    currentData.diff_data = data;
+    renderDiffContent(data, false, {
+      title: `候选版本 ${versionId} 与当前 SKILL.md 的差异`,
+      oldLabel: '当前版本',
+      newLabel: '候选版本',
+      extraActions: `<button class="btn btn-green btn-sm" onclick="applyCandidate('${versionId}')">应用候选</button>`
+    });
+  } catch (e) {
+    content.innerHTML = `<div style="color:var(--red);font-size:13px">候选 Diff 加载失败: ${e.message}</div>`;
+  }
+}
+
+async function applyCandidate(versionId) {
+  const protectedWrite = currentData?.write_protection?.requires_confirm_write;
+  const message = protectedWrite
+    ? `这是外部安装 skill。应用候选 ${versionId} 会覆盖真实 SKILL.md，是否显式确认写回？`
+    : `应用候选 ${versionId}？当前 SKILL.md 将被覆盖。`;
+  if (!confirm(message)) return;
+  const opts = protectedWrite
+    ? {method:'POST', body: JSON.stringify({confirm_write: true})}
+    : {method:'POST'};
+  const data = await api(`/skills/${currentId}/evolve/candidate/${versionId}/apply`, opts);
+  if (data.error) {
+    alert('应用失败: ' + (data.message || data.error));
+    return;
+  }
+  alert('候选已应用');
+  await selectSkill(currentId);
+}
+
 async function setBaseline() {
   const btn = document.getElementById('baseline-btn');
   btn.disabled = true;
@@ -900,17 +938,20 @@ async function regenerateSummary() {
 }
 
 function historySourceClass(source) {
-  return source === 'baseline' ? 'baseline' : source === 'pre-restore' ? 'pre-restore' : 'other';
+  return source === 'baseline' ? 'baseline' :
+    source === 'pre-restore' || source === 'pre-apply-candidate' ? 'pre-restore' :
+    source === 'evolution-candidate' ? 'baseline' : 'other';
 }
 
 function historySourceLabel(source) {
-  return ({baseline:'基线', 'pre-restore':'pre-restore'}[source] || '其他');
+  return ({baseline:'基线', 'pre-restore':'pre-restore', 'pre-apply-candidate':'应用前快照', 'evolution-candidate':'候选'}[source] || '其他');
 }
 
 function getFilteredVersions(versions, filter) {
   if (filter === 'baseline') return versions.filter(v => v.source === 'baseline');
   if (filter === 'pre-restore') return versions.filter(v => v.source === 'pre-restore');
-  if (filter === 'other') return versions.filter(v => !['baseline','pre-restore'].includes(v.source));
+  if (filter === 'candidate') return versions.filter(v => v.source === 'evolution-candidate');
+  if (filter === 'other') return versions.filter(v => !['baseline','pre-restore','pre-apply-candidate','evolution-candidate'].includes(v.source));
   return versions;
 }
 
@@ -926,7 +967,7 @@ function renderHistoryContent(versions, page, pageSize, filter) {
   content.innerHTML = `
     <div class="history-toolbar">
       <select class="select" id="history-filter" onchange="onHistoryFilterChange()">
-        ${['all','baseline','pre-restore','other'].map(v => `<option value="${v}" ${filter===v?'selected':''}>${({all:'全部', baseline:'基线', 'pre-restore':'pre-restore', other:'其他'}[v])}</option>`).join('')}
+        ${['all','candidate','baseline','pre-restore','other'].map(v => `<option value="${v}" ${filter===v?'selected':''}>${({all:'全部', candidate:'候选', baseline:'基线', 'pre-restore':'pre-restore', other:'其他'}[v])}</option>`).join('')}
       </select>
       <select class="select" id="history-size" onchange="onHistorySizeChange()">
         ${[10,20,50,100].map(v => `<option value="${v}" ${pageSize===v?'selected':''}>每页 ${v}</option>`).join('')}
@@ -940,9 +981,12 @@ function renderHistoryContent(versions, page, pageSize, filter) {
             ${v.is_baseline ? '<span class="health-chip optimization">当前基线</span>' : ''}
             <span class="version-id">${v.id}</span>
           </div>
-          <div class="version-meta">${(v.created_at || '').slice(0,19).replace('T',' ')} · ${v.score != null ? `${(v.score * 100).toFixed(1)}%` : '无分数'}</div>
+          <div class="version-meta">${(v.created_at || '').slice(0,19).replace('T',' ')} · ${v.score != null ? `${(v.score * 100).toFixed(1)}%` : '无分数'}${v.note ? ` · ${v.note}` : ''}</div>
           <div class="version-actions">
-            <button class="btn btn-ghost btn-xs" onclick="restoreVersion('${v.id}')">恢复为当前版本</button>
+            ${v.source === 'evolution-candidate'
+              ? `<button class="btn btn-secondary btn-xs" onclick="showCandidateDiff('${v.id}')">查看候选 Diff</button>
+                 <button class="btn btn-green btn-xs" onclick="applyCandidate('${v.id}')">应用候选</button>`
+              : `<button class="btn btn-ghost btn-xs" onclick="restoreVersion('${v.id}')">恢复为当前版本</button>`}
           </div>
         </div>`).join('')}
     </div>
@@ -983,20 +1027,26 @@ async function loadDiff() {
   }
 }
 
-function renderDiffContent(data, expandAll) {
+function renderDiffContent(data, expandAll, options = {}) {
   const content = document.getElementById('diff-content');
   const blocks = data.blocks || [];
+  currentDiffOptions = options;
   saveSkillPrefs(currentId, { diffExpandAll: expandAll });
   if (blocks.length === 0) {
-    content.innerHTML = `<div class="diff-summary">当前版本与基线没有差异。</div>`;
+    content.innerHTML = `<div class="diff-summary">${options.emptyText || '当前版本与基线没有差异。'}</div>`;
     return;
   }
+  const title = options.title || `新增 ${data.summary.added} · 删除 ${data.summary.deleted} · 修改 ${data.summary.modified}`;
+  const oldLabel = options.oldLabel || '基线版本';
+  const newLabel = options.newLabel || '当前版本';
+  const extraActions = options.extraActions || '';
   content.innerHTML = `
     <div class="diff-toolbar">
-      <div class="diff-summary">新增 ${data.summary.added} · 删除 ${data.summary.deleted} · 修改 ${data.summary.modified}</div>
+      <div class="diff-summary">${title}</div>
       <div class="actions">
-        <button class="btn btn-ghost btn-xs" onclick="renderDiffContent(currentData.diff_data, true)">全部展开</button>
-        <button class="btn btn-ghost btn-xs" onclick="renderDiffContent(currentData.diff_data, false)">全部收起</button>
+        ${extraActions}
+        <button class="btn btn-ghost btn-xs" onclick="renderDiffContent(currentData.diff_data, true, currentDiffOptions)">全部展开</button>
+        <button class="btn btn-ghost btn-xs" onclick="renderDiffContent(currentData.diff_data, false, currentDiffOptions)">全部收起</button>
       </div>
     </div>
     <div class="diff-list">
@@ -1013,11 +1063,11 @@ function renderDiffContent(data, expandAll) {
           <div class="diff-body">
             <div class="diff-col-wrap">
               <div>
-                <div class="diff-col-title">基线版本</div>
+                <div class="diff-col-title">${oldLabel}</div>
                 <div class="diff-pre">${escHtml((b.old_lines || []).join('\n') || '∅')}</div>
               </div>
               <div>
-                <div class="diff-col-title">当前版本</div>
+                <div class="diff-col-title">${newLabel}</div>
                 <div class="diff-pre">${escHtml((b.new_lines || []).join('\n') || '∅')}</div>
               </div>
             </div>

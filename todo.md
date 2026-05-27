@@ -185,3 +185,21 @@
 - 自动进化在写保护 skill 上默认保存 `evolution-candidate`，不覆盖真实 `SKILL.md`
 - Web 详情页对写保护 skill 显示 `写保护` 标记
 - Web 恢复操作已增加外部 skill 写回确认文案
+
+## 2026-05-27 候选版本应用流程
+
+1. 区分 `evolution-candidate` 历史版本
+2. 增加候选版本 Diff 接口
+3. 增加应用候选接口
+4. 应用前保存 `pre-apply-candidate` 快照
+5. Web 历史列表增加候选筛选、候选 Diff 和应用按钮
+6. 验证写保护 skill 应用候选仍需显式确认
+
+### Review
+
+- 历史筛选新增 `候选`
+- `evolution-candidate` 在历史列表中显示为 `候选`
+- 新增候选 Diff：当前 `SKILL.md` 对比候选版本
+- 新增应用候选：应用前保存 `pre-apply-candidate`
+- 写保护 skill 应用候选仍要求 `confirm_write=true`
+- Web 支持先看候选 Diff，再显式应用候选

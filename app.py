@@ -794,6 +794,9 @@ def restore_version(skill_dir: Path, version_id: str) -> bool:
 def create_pre_restore_snapshot(skill_dir: Path) -> str:
     return save_version(skill_dir, "pre-restore", source="pre-restore", note="恢复基线前的保险快照")
 
+def create_pre_apply_candidate_snapshot(skill_dir: Path) -> str:
+    return save_version(skill_dir, "pre-apply-candidate", source="pre-apply-candidate", note="应用候选版本前的保险快照")
+
 def build_diff_blocks(old_text: str, new_text: str) -> list[dict]:
     old_lines = old_text.splitlines()
     new_lines = new_text.splitlines()
@@ -1179,6 +1182,51 @@ def restore(skill_id, version_id):
     create_pre_restore_snapshot(skill_dir)
     ok = restore_version(skill_dir, version_id)
     return jsonify({"success": True} if ok else {"error": "Version not found"}), (200 if ok else 404)
+
+@app.route('/api/skills/<skill_id>/evolve/candidate/<version_id>/diff')
+def candidate_diff(skill_id, version_id):
+    skill_dir = get_skills_path() / skill_id
+    skill_md = skill_dir / "SKILL.md"
+    if not skill_md.exists(): return jsonify({"error": "Not found"}), 404
+    candidate_content = get_version_content(skill_dir, version_id)
+    if candidate_content is None:
+        return jsonify({"error": "Candidate version not found"}), 404
+    versions = {v["id"]: v for v in list_versions(skill_dir)}
+    version = versions.get(version_id, {})
+    if version.get("source") != "evolution-candidate":
+        return jsonify({"error": "Version is not an evolution candidate"}), 400
+    current_content = skill_md.read_text(encoding="utf-8")
+    blocks = build_diff_blocks(current_content, candidate_content)
+    return jsonify({
+        "candidate_version_id": version_id,
+        "version": version,
+        "blocks": blocks,
+        "summary": {
+            "added": sum(1 for b in blocks if b["type"] == "added"),
+            "deleted": sum(1 for b in blocks if b["type"] == "deleted"),
+            "modified": sum(1 for b in blocks if b["type"] == "modified"),
+        }
+    })
+
+@app.route('/api/skills/<skill_id>/evolve/candidate/<version_id>/apply', methods=['POST'])
+def apply_candidate(skill_id, version_id):
+    skill_dir = get_skills_path() / skill_id
+    skill_md = skill_dir / "SKILL.md"
+    if not skill_md.exists(): return jsonify({"error": "Not found"}), 404
+    if is_write_protected_skill(skill_dir) and not request_confirmed_write():
+        return write_protection_error(skill_dir)
+    versions = {v["id"]: v for v in list_versions(skill_dir)}
+    version = versions.get(version_id)
+    if not version:
+        return jsonify({"error": "Candidate version not found"}), 404
+    if version.get("source") != "evolution-candidate":
+        return jsonify({"error": "Version is not an evolution candidate"}), 400
+    candidate_content = get_version_content(skill_dir, version_id)
+    if candidate_content is None:
+        return jsonify({"error": "Candidate version not found"}), 404
+    snapshot_id = create_pre_apply_candidate_snapshot(skill_dir)
+    skill_md.write_text(candidate_content, encoding="utf-8")
+    return jsonify({"success": True, "version_id": version_id, "pre_apply_version_id": snapshot_id})
 
 @app.route('/api/skills/<skill_id>/baseline/restore', methods=['POST'])
 def restore_baseline(skill_id):

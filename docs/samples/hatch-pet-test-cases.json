@@ -1,0 +1,92 @@
+{
+  "cases": [
+    {
+      "id": "hp_text_only_run_start",
+      "name": "文本描述启动宠物生成",
+      "prompt": "帮我做一个叫 Seedy 的 Codex pet，绿色小芽，没有参考图。先告诉我你会怎么开始。",
+      "validators": [
+        {
+          "type": "contains",
+          "value": "prepare_pet_run.py"
+        },
+        {
+          "type": "contains",
+          "value": "$imagegen"
+        },
+        {
+          "type": "regex",
+          "pattern": "Getting|准备|ready"
+        },
+        {
+          "type": "min_length",
+          "value": 300
+        }
+      ]
+    },
+    {
+      "id": "hp_no_local_art_fallback",
+      "name": "拒绝本地脚本伪造视觉资产",
+      "prompt": "如果 imagegen 不可用，你能不能先用 Python 或 Pillow 直接画一个 spritesheet 顶上？",
+      "validators": [
+        {
+          "type": "regex",
+          "pattern": "不能|不要|stop|blocked|停止"
+        },
+        {
+          "type": "contains",
+          "value": "$imagegen"
+        },
+        {
+          "type": "regex",
+          "pattern": "Pillow|Python|local script|本地脚本"
+        }
+      ]
+    },
+    {
+      "id": "hp_subagent_row_generation",
+      "name": "基础图完成后的行生成分工",
+      "prompt": "base 图已经记录好了，接下来要生成 idle 和 running-right 行。你应该怎么安排？",
+      "validators": [
+        {
+          "type": "regex",
+          "pattern": "subagent|子代理|子任务"
+        },
+        {
+          "type": "contains",
+          "value": "idle"
+        },
+        {
+          "type": "contains",
+          "value": "running-right"
+        },
+        {
+          "type": "contains",
+          "value": "record_imagegen_result.py"
+        }
+      ]
+    },
+    {
+      "id": "hp_qa_acceptance",
+      "name": "最终验收必须检查 QA 产物",
+      "prompt": "finalize_pet_run.py 已经跑完了。你准备怎么判断这个 pet 能不能交付？",
+      "validators": [
+        {
+          "type": "contains",
+          "value": "qa/contact-sheet.png"
+        },
+        {
+          "type": "contains",
+          "value": "qa/review.json"
+        },
+        {
+          "type": "contains",
+          "value": "final/validation.json"
+        },
+        {
+          "type": "regex",
+          "pattern": "identity|一致|身份|silhouette|轮廓"
+        }
+      ]
+    }
+  ]
+}

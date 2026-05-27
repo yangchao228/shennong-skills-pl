@@ -205,6 +205,33 @@ def parse_frontmatter(content: str) -> dict:
                 result[k.strip()] = v.strip()
         return result
 
+GENERATED_REF_PREFIXES = (
+    "decoded/",
+    "final/",
+    "frames/",
+    "prompts/",
+    "qa/",
+    "references/",
+    "run/",
+)
+GENERATED_REF_NAMES = {
+    "imagegen-jobs.json",
+    "pet_request.json",
+    "pet.json",
+}
+
+def is_generated_or_placeholder_ref(ref: str) -> bool:
+    if any(token in ref for token in ("<", ">", "$", "{", "}")):
+        return True
+    return ref in GENERATED_REF_NAMES or ref.startswith(GENERATED_REF_PREFIXES)
+
+def referenced_file_exists(skill_dir: Path, ref: str) -> bool:
+    path = Path(ref)
+    candidates = [skill_dir / path]
+    if len(path.parts) == 1 and path.suffix in {".py", ".sh"}:
+        candidates.append(skill_dir / "scripts" / path)
+    return any(candidate.exists() for candidate in candidates)
+
 def check_health(skill_dir: Path) -> dict:
     def issue(kind: str, severity: str, message: str, dimension: str, impact: str) -> dict:
         return {
@@ -266,7 +293,8 @@ def check_health(skill_dir: Path) -> dict:
     if not (skill_dir / "README.md").exists():
         issues.append(issue("optimization", "info", "缺少 README.md", "文档", "不影响当前使用，但后续维护和交接成本更高"))
         deductions += 5
-    if not re.search(r'(Phase|Step|步骤|阶段)\s*\d', content, re.I) and len(content) > 500:
+    workflow_pattern = r'(Phase|Step|步骤|阶段)\s*\d|Default Workflow|默认工作流|默认流程|Visible Progress Plan'
+    if not re.search(workflow_pattern, content, re.I) and len(content) > 500:
         issues.append(issue("optimization", "info", "未发现工作流结构", "工作流", "不影响能用，但不利于后续测试、拆解和自动演进"))
         deductions += 5
     if not re.search(r'(fallback|错误|异常|失败|error|fail)', content, re.I):
@@ -276,7 +304,9 @@ def check_health(skill_dir: Path) -> dict:
         issues.append(issue("risk", "warning", f"内容过短（{len(content)}字节）", "完整性", "规则表达可能不完整，输出稳定性不足"))
         deductions += 10
     for ref in re.findall(r'`([^`]+\.(?:py|sh|json|yaml|yml))`', content):
-        if not ref.startswith(('/', '~')) and not (skill_dir / ref).exists():
+        if ref.startswith(('/', '~')) or is_generated_or_placeholder_ref(ref):
+            continue
+        if not referenced_file_exists(skill_dir, ref):
             issues.append(issue("blocking", "error", f"引用文件不存在: {ref}", "依赖", "文档与实际文件不一致，按说明执行会直接失败"))
             deductions += 10
 

@@ -122,3 +122,23 @@
 - 已用浏览器验证页面渲染、skill 点击、`版本与测试` 标签切换和基线操作区展示
 - 浏览器 console 未发现 error/warning
 - 当前环境下 Browser 截图接口超时，但 DOM 与交互 smoke test 已通过
+
+## 2026-05-27 hatch-pet 治理样本
+
+1. 用真实安装目录读取 `hatch-pet`
+2. 复现健康检查中的阻断项
+3. 判断阻断项是真问题还是检查器误报
+4. 修复依赖检查和工作流识别规则
+5. 沉淀治理样本文档与候选测试用例
+6. 验证修复后的 API 结果
+
+### Review
+
+- 已确认 `hatch-pet` 初始健康检查为 `D / 0`，包含 29 个阻断项
+- 根因是检查器把运行时产物、占位路径和 `scripts/` 下真实脚本误判为缺失依赖
+- 已调整 `app.py`，让依赖检查区分静态依赖、生成产物、占位路径和脚本目录
+- 已让工作流检测识别 `Default Workflow` 与 `Visible Progress Plan`
+- 修复后 `hatch-pet` 健康检查变为 `B / 87`，阻断项降为 0
+- 剩余问题为中文触发词不足和缺少 README，符合真实治理优先级
+- 已新增 `docs/sample-governance-hatch-pet.md`
+- 已新增 `docs/samples/hatch-pet-test-cases.json` 作为候选测试协议，暂不写入外部 skill 目录

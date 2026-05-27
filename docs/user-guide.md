@@ -119,6 +119,7 @@ chmod +x scripts/deploy.sh
 | `APP_PORT` | 服务端口 | `7890` |
 | `SKILLS_PATH` | skills 根目录 | 自动检测 |
 | `SKILLS_MANAGER_META_DIR` | 管理台元数据目录 | `runtime/meta` |
+| `SKILLS_MANAGER_PROTECTED_ROOTS` | 写保护 skill 根目录，多个路径用系统 path separator 分隔 | `~/.codex/skills` |
 | `AI_PROVIDER` | AI 提供方选择策略 | `auto` |
 | `OLLAMA_BASE_URL` | Ollama 地址 | `http://127.0.0.1:11434` |
 | `OLLAMA_MODEL` | 默认 Ollama 模型 | `glm4:latest` |
@@ -140,6 +141,28 @@ chmod +x scripts/deploy.sh
 - 进化日志
 
 只有恢复版本、恢复基线、自动进化保留改进版这类明确改变 skill 内容的操作，才会写回真实 `SKILL.md`。
+
+### 写回保护规则
+
+`~/.codex/skills` 下的外部安装 skill 默认启用写保护。
+
+写保护不会影响：
+
+- 扫描列表
+- 结构检查
+- AI 分析
+- 测试用例保存
+- 测试运行
+- 基线快照保存
+- Diff 查看
+
+写保护会拦住静默覆盖 `SKILL.md` 的操作：
+
+- 恢复历史版本
+- 恢复到基线
+- 自动进化直接保留改进版
+
+对写保护 skill，自动进化默认只保存候选版本，不覆盖真实 `SKILL.md`。如果确实要写回，需要在操作时显式确认。
 
 ### AI provider 规则
 

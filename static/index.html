@@ -507,6 +507,7 @@ function renderDetail(data) {
           <div class="detail-badges">
             <span class="badge badge-grade-${h.grade}">健康度 ${h.grade}</span>
             <span class="badge badge-${data.type}">${typeLabel(data.type)}</span>
+            ${data.write_protection?.requires_confirm_write ? '<span class="badge badge-unknown" title="恢复和自动进化写回需要显式确认">写保护</span>' : ''}
           </div>
           <div class="detail-desc">${data.description||'<span style="color:var(--muted)">无描述</span>'}</div>
         </div>
@@ -821,11 +822,20 @@ async function loadHistory() {
 }
 
 async function restoreVersion(versionId) {
-  if (!confirm(`恢复到版本 ${versionId}？当前 SKILL.md 将被覆盖。`)) return;
-  const r = await api(`/skills/${currentId}/evolve/restore/${versionId}`, {method:'POST'});
+  const protectedWrite = currentData?.write_protection?.requires_confirm_write;
+  const message = protectedWrite
+    ? `这是外部安装 skill。恢复到版本 ${versionId} 会覆盖真实 SKILL.md，是否显式确认写回？`
+    : `恢复到版本 ${versionId}？当前 SKILL.md 将被覆盖。`;
+  if (!confirm(message)) return;
+  const opts = protectedWrite
+    ? {method:'POST', body: JSON.stringify({confirm_write: true})}
+    : {method:'POST'};
+  const r = await api(`/skills/${currentId}/evolve/restore/${versionId}`, opts);
   if (r.success) {
     alert('已恢复');
     selectSkill(currentId);
+  } else if (r.error) {
+    alert('恢复失败: ' + (r.message || r.error));
   }
 }
 
@@ -853,10 +863,17 @@ async function setBaseline() {
 async function restoreBaseline() {
   const btn = document.getElementById('restore-baseline-btn');
   if (!btn || btn.disabled) return;
-  if (!confirm('恢复到基线会直接覆盖当前本地 SKILL.md，是否继续？')) return;
+  const protectedWrite = currentData?.write_protection?.requires_confirm_write;
+  const message = protectedWrite
+    ? '这是外部安装 skill。恢复到基线会覆盖真实 SKILL.md，是否显式确认写回？'
+    : '恢复到基线会直接覆盖当前本地 SKILL.md，是否继续？';
+  if (!confirm(message)) return;
   btn.disabled = true;
   try {
-    const data = await api(`/skills/${currentId}/baseline/restore`, {method:'POST'});
+    const opts = protectedWrite
+      ? {method:'POST', body: JSON.stringify({confirm_write: true})}
+      : {method:'POST'};
+    const data = await api(`/skills/${currentId}/baseline/restore`, opts);
     if (data.error) throw new Error(data.error);
     await selectSkill(currentId);
   } catch (e) {

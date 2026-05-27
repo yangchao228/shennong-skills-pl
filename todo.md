@@ -166,3 +166,22 @@
 - 已用临时 skill 目录验证：保存类型、保存测试用例、保存版本快照均不再写入被管理 skill 目录
 - 已将官方 `hatch-pet` 目录里的旧 `.skill-meta.json` 迁到 `/tmp/hatch-pet.skill-meta.legacy.json` 备份
 - 已确认迁移后 `hatch-pet` 详情仍可读取外部 meta，且官方 skill 目录不再包含管理台缓存文件
+
+## 2026-05-27 外部 skill 写回保护
+
+1. 识别外部安装 skill 根目录
+2. 对恢复历史版本和恢复基线增加写回确认
+3. 让自动进化在外部 skill 上默认只保存候选版本
+4. 在详情页标记写保护状态
+5. 更新配置文档和用户指南
+6. 验证受保护 skill 不会被静默覆盖
+
+### Review
+
+- 默认将 `~/.codex/skills` 视为写保护根目录
+- 支持通过 `SKILLS_MANAGER_PROTECTED_ROOTS` 自定义写保护根目录
+- `/api/skills/<id>` 已返回 `write_protection`
+- 恢复历史版本和恢复基线在写保护 skill 上要求 `confirm_write=true`
+- 自动进化在写保护 skill 上默认保存 `evolution-candidate`，不覆盖真实 `SKILL.md`
+- Web 详情页对写保护 skill 显示 `写保护` 标记
+- Web 恢复操作已增加外部 skill 写回确认文案

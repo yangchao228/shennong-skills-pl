@@ -196,6 +196,44 @@ def get_manager_meta_root() -> Path:
         return Path(env).expanduser()
     return Path("runtime") / "meta"
 
+def get_write_protected_roots() -> list[Path]:
+    raw = os.environ.get("SKILLS_MANAGER_PROTECTED_ROOTS") or ""
+    if raw:
+        return [Path(p).expanduser().resolve() for p in raw.split(os.pathsep) if p.strip()]
+    return [(Path.home() / ".codex" / "skills").resolve()]
+
+def path_is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
+
+def is_write_protected_skill(skill_dir: Path) -> bool:
+    resolved = skill_dir.expanduser().resolve()
+    return any(path_is_relative_to(resolved, root) for root in get_write_protected_roots())
+
+def write_protection_status(skill_dir: Path) -> dict:
+    protected = is_write_protected_skill(skill_dir)
+    return {
+        "protected": protected,
+        "reason": "external_skill_root" if protected else None,
+        "requires_confirm_write": protected,
+        "protected_roots": [str(p) for p in get_write_protected_roots()],
+    }
+
+def request_confirmed_write() -> bool:
+    payload = request.get_json(silent=True) or {}
+    query_value = request.args.get("confirm_write", "")
+    return bool(payload.get("confirm_write")) or query_value.lower() in {"1", "true", "yes"}
+
+def write_protection_error(skill_dir: Path):
+    return jsonify({
+        "error": "Write confirmation required",
+        "message": "这是外部安装 skill。该操作会覆盖真实 SKILL.md，需要显式 confirm_write=true。",
+        "write_protection": write_protection_status(skill_dir),
+    }), 409
+
 def get_skill_state_dir(skill_dir: Path) -> Path:
     resolved = str(skill_dir.expanduser().resolve())
     digest = hashlib.sha256(resolved.encode("utf-8")).hexdigest()[:16]
@@ -597,6 +635,7 @@ def scan_skills(path: Path) -> list:
                 "risk_count": health["counts"]["risk"],
                 "optimization_count": health["counts"]["optimization"],
                 "has_tests": has_test_cases(d),
+                "write_protected": is_write_protected_skill(d),
             })
         except Exception as e:
             skills.append({"id": d.name, "name": d.name, "error": str(e),
@@ -688,12 +727,23 @@ def save_version_index(skill_dir: Path, index: dict):
 
 def save_version(skill_dir: Path, label: str = "", source: str = "manual",
                  score: float | None = None, note: str = "") -> str:
+    return save_version_content(
+        skill_dir,
+        (skill_dir / "SKILL.md").read_text(encoding="utf-8"),
+        label=label,
+        source=source,
+        score=score,
+        note=note,
+    )
+
+def save_version_content(skill_dir: Path, content: str, label: str = "", source: str = "manual",
+                         score: float | None = None, note: str = "") -> str:
     vdir = ensure_skill_state_dir(skill_dir) / "versions"
     vdir.mkdir(exist_ok=True)
     ts = datetime.now().strftime('%Y%m%d-%H%M%S')
     vid = f"{ts}-{label}" if label else ts
     target = vdir / f"{vid}.md"
-    shutil.copy2(skill_dir / "SKILL.md", target)
+    target.write_text(content, encoding="utf-8")
     index = load_version_index(skill_dir)
     index[vid] = {
         "id": vid,
@@ -824,12 +874,13 @@ def propose_improvement(skill_content: str, test_results: list, round_num: int) 
     proposed = re.sub(r'\n?```$', '', proposed)
     return proposed.strip()
 
-def evolution_stream(skill_dir: Path, max_rounds: int) -> Generator:
+def evolution_stream(skill_dir: Path, max_rounds: int, confirm_write: bool = False) -> Generator:
     def event(data: dict) -> str:
         return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
     skill_md = skill_dir / "SKILL.md"
     test_cases_file = get_test_cases_file(skill_dir)
+    write_protected = is_write_protected_skill(skill_dir) and not confirm_write
 
     if not test_cases_file.exists():
         yield event({"type": "error", "message": "未找到 test-cases.json，请先添加测试用例"})
@@ -841,7 +892,17 @@ def evolution_stream(skill_dir: Path, max_rounds: int) -> Generator:
     if not test_cases:
         yield event({"type": "error", "message": "测试用例为空"}); return
 
-    yield event({"type": "start", "message": f"开始进化｜{len(test_cases)} 个测试用例｜最多 {max_rounds} 轮"})
+    yield event({
+        "type": "start",
+        "message": f"开始进化｜{len(test_cases)} 个测试用例｜最多 {max_rounds} 轮",
+        "write_protection": write_protection_status(skill_dir),
+        "candidate_only": write_protected,
+    })
+    if write_protected:
+        yield event({
+            "type": "write_protected",
+            "message": "当前是外部安装 skill，本次只保存候选版本，不覆盖真实 SKILL.md。"
+        })
 
     # Baseline
     yield event({"type": "phase", "phase": "baseline", "message": "运行基线测试..."})
@@ -899,24 +960,37 @@ def evolution_stream(skill_dir: Path, max_rounds: int) -> Generator:
         append_evolution_log(skill_dir, {
             "timestamp": datetime.now().isoformat(), "round": round_num,
             "old_score": round(best_score, 4), "new_score": round(new_score, 4),
-            "decision": "keep" if improved else "revert",
+            "decision": "candidate" if improved and write_protected else "keep" if improved else "revert",
             "delta": round(new_score - best_score, 4)
         })
 
         if improved:
-            save_version(skill_dir, f"r{round_num}-keep", source="evolution-keep", score=new_score)
-            skill_md.write_text(proposed, encoding='utf-8')
+            if write_protected:
+                save_version_content(
+                    skill_dir,
+                    proposed,
+                    f"r{round_num}-candidate",
+                    source="evolution-candidate",
+                    score=new_score,
+                    note="外部 skill 写保护：仅保存候选版本，未覆盖 SKILL.md",
+                )
+            else:
+                save_version_content(skill_dir, proposed, f"r{round_num}-keep", source="evolution-keep", score=new_score)
+                skill_md.write_text(proposed, encoding='utf-8')
             best_score = new_score
             current_content = proposed
             current_results = new_results
             no_improve = 0
-            yield event({"type": "round_done", "round": round_num, "decision": "keep",
+            decision = "candidate" if write_protected else "keep"
+            message = f"候选已保存 → {new_score:.1%}" if write_protected else f"✓ 保留 → {new_score:.1%}"
+            yield event({"type": "round_done", "round": round_num, "decision": decision,
                          "old_score": round(best_score - (new_score - best_score), 4),
                          "new_score": round(new_score, 4),
-                         "message": f"✓ 保留 → {new_score:.1%}"})
+                         "write_protected": write_protected,
+                         "message": message})
         else:
             no_improve += 1
-            save_version(skill_dir, f"r{round_num}-revert", source="evolution-revert", score=new_score)
+            save_version_content(skill_dir, proposed, f"r{round_num}-revert", source="evolution-revert", score=new_score)
             yield event({"type": "round_done", "round": round_num, "decision": "revert",
                          "old_score": round(best_score, 4), "new_score": round(new_score, 4),
                          "message": f"✗ 回滚（{new_score:.1%} 未超过 {best_score:.1%}）"})
@@ -977,6 +1051,7 @@ def get_skill(skill_id):
         "last_test": last_test,
         "delta_from_baseline": delta,
         "overview_summary": overview_summary,
+        "write_protection": write_protection_status(skill_dir),
     })
 
 @app.route('/api/skills/<skill_id>/type', methods=['PUT'])
@@ -1077,10 +1152,11 @@ def start_evolution(skill_id):
     skill_dir = get_skills_path() / skill_id
     if not skill_dir.exists(): return jsonify({"error": "Not found"}), 404
     max_rounds = int(request.args.get('rounds', 5))
+    confirm_write = request_confirmed_write()
 
     def generate():
         try:
-            for event in evolution_stream(skill_dir, max_rounds):
+            for event in evolution_stream(skill_dir, max_rounds, confirm_write=confirm_write):
                 yield event
         except Exception as e:
             yield f"data: {json.dumps({'type':'error','message':str(e)})}\n\n"
@@ -1098,6 +1174,8 @@ def get_history(skill_id):
 def restore(skill_id, version_id):
     skill_dir = get_skills_path() / skill_id
     if not skill_dir.exists(): return jsonify({"error": "Not found"}), 404
+    if is_write_protected_skill(skill_dir) and not request_confirmed_write():
+        return write_protection_error(skill_dir)
     create_pre_restore_snapshot(skill_dir)
     ok = restore_version(skill_dir, version_id)
     return jsonify({"success": True} if ok else {"error": "Version not found"}), (200 if ok else 404)
@@ -1110,6 +1188,8 @@ def restore_baseline(skill_id):
     baseline_id = meta.get("baseline_version_id")
     if not baseline_id:
         return jsonify({"error": "No baseline"}), 400
+    if is_write_protected_skill(skill_dir) and not request_confirmed_write():
+        return write_protection_error(skill_dir)
     create_pre_restore_snapshot(skill_dir)
     ok = restore_version(skill_dir, baseline_id)
     return jsonify({"success": True, "version_id": baseline_id} if ok else {"error": "Baseline version not found"}), (200 if ok else 404)

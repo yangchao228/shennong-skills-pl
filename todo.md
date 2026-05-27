@@ -203,3 +203,21 @@
 - 新增应用候选：应用前保存 `pre-apply-candidate`
 - 写保护 skill 应用候选仍要求 `confirm_write=true`
 - Web 支持先看候选 Diff，再显式应用候选
+
+## 2026-05-27 本地 smoke test 固化
+
+1. 新增本地 smoke 脚本
+2. 用临时 skills/meta 目录验证核心 API
+3. 覆盖元数据外置、写回保护、候选 Diff、候选应用、自动进化候选保存
+4. 补充前端内联 JS 语法检查
+5. 更新 README 和用户指南
+
+### Review
+
+- 已新增 `scripts/smoke_local.py`
+- smoke 脚本不启动端口，不调用真实模型，不访问真实 skill 目录
+- 已验证保存类型和测试用例不会污染被管理 skill 目录
+- 已验证写保护恢复不带确认返回 `409`，带确认可恢复
+- 已验证候选 Diff、候选应用和 `pre-apply-candidate` 快照
+- 已验证写保护自动进化只保存 `evolution-candidate`，不覆盖 `SKILL.md`
+- 已集成 `node --check` 前端内联 JS 语法检查

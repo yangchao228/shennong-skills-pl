@@ -145,3 +145,13 @@ export ANTHROPIC_MODEL=claude-sonnet-4-6
 如果你不是在改代码，而是在实际使用这个系统，直接看这里：
 
 - [用户使用指南](docs/user-guide.md)
+
+## 本地验证
+
+修改核心治理链路后，先跑本地 smoke test：
+
+```bash
+./.venv/bin/python scripts/smoke_local.py
+```
+
+它会用临时 skills/meta 目录验证元数据外置、写回保护、候选 Diff 和候选应用流程。

@@ -118,11 +118,28 @@ chmod +x scripts/deploy.sh
 | `APP_HOST` | 服务监听地址 | `0.0.0.0` |
 | `APP_PORT` | 服务端口 | `7890` |
 | `SKILLS_PATH` | skills 根目录 | 自动检测 |
+| `SKILLS_MANAGER_META_DIR` | 管理台元数据目录 | `runtime/meta` |
 | `AI_PROVIDER` | AI 提供方选择策略 | `auto` |
 | `OLLAMA_BASE_URL` | Ollama 地址 | `http://127.0.0.1:11434` |
 | `OLLAMA_MODEL` | 默认 Ollama 模型 | `glm4:latest` |
 | `ANTHROPIC_API_KEY` | Anthropic 密钥 | 空 |
 | `ANTHROPIC_MODEL` | Anthropic 模型 | `claude-sonnet-4-6` |
+
+### 元数据存储规则
+
+管理台默认不往被管理的 skill 目录写缓存文件。
+
+这些数据会写到 `SKILLS_MANAGER_META_DIR`：
+
+- skill 类型标记
+- 总览摘要缓存
+- 测试用例
+- 最近测试结果
+- 基线信息
+- 版本快照
+- 进化日志
+
+只有恢复版本、恢复基线、自动进化保留改进版这类明确改变 skill 内容的操作，才会写回真实 `SKILL.md`。
 
 ### AI provider 规则
 
@@ -246,12 +263,12 @@ AI_PROVIDER=anthropic
 
 ### 7.1 测试用例
 
-一个 skill 想进入自动进化，先要有 `test-cases.json`。
+一个 skill 想进入自动进化，先要有测试用例。
 
 你有两种方式获得它：
 
 1. 点击 `AI 自动生成测试用例`
-2. 手工编写 `test-cases.json`
+2. 在管理台元数据目录里手工编写对应的 `test-cases.json`
 
 当前支持的 validator 类型：
 
@@ -346,7 +363,9 @@ AI_PROVIDER=anthropic
 每次进化后，系统会记录：
 
 - `evolution-log.jsonl`
-- `.versions/` 下的版本快照
+- `versions/` 下的版本快照
+
+这些文件位于管理台元数据目录，不在原 skill 目录内。
 
 你可以在历史面板里：
 
@@ -383,7 +402,7 @@ AI_PROVIDER=anthropic
 当检测到外部修改时：
 
 1. 页面右上角通知会收到变更提示
-2. 如果该 skill 有 `test-cases.json`，系统会自动重新跑测试
+2. 如果该 skill 有测试用例，系统会自动重新跑测试
 3. 会把新分数与基线比较
 4. 如果分数大幅下降，系统会自动触发进化
 
@@ -463,7 +482,7 @@ echo $OLLAMA_MODEL
 
 基于当前实现，有这些边界需要知道：
 
-- UI 里可以查看测试，但当前没有提供完整的测试用例可视化编辑器，复杂场景仍建议直接编辑 `test-cases.json`
+- UI 里可以查看测试，但当前没有提供完整的测试用例可视化编辑器，复杂场景仍建议直接编辑管理台元数据目录里的 `test-cases.json`
 - AI 分析和测试生成依赖模型输出稳定 JSON，模型不稳定时可能失败
 - 自动进化更适合小步优化，不适合大规模重写 skill
 - `恢复版本` 是直接覆盖，不带二次 diff 对比

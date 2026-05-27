@@ -142,3 +142,27 @@
 - 剩余问题为中文触发词不足和缺少 README，符合真实治理优先级
 - 已新增 `docs/sample-governance-hatch-pet.md`
 - 已新增 `docs/samples/hatch-pet-test-cases.json` 作为候选测试协议，暂不写入外部 skill 目录
+
+## 2026-05-27 管理台元数据外置
+
+1. 盘点当前写入 skill 目录的管理台状态
+2. 新增独立元数据目录
+3. 将 meta、测试用例、版本快照、进化日志迁到外部目录
+4. 保留对旧版 skill 目录内元数据的只读兼容与自动迁移
+5. 更新 README、用户指南和部署脚本
+6. 用临时 skill 目录验证不再污染被管理目录
+
+### Review
+
+- 已新增默认元数据目录 `runtime/meta`
+- 支持通过 `SKILLS_MANAGER_META_DIR` 自定义元数据目录
+- `.skill-meta.json` 改为外部 `meta.json`
+- `test-cases.json` 改为外部保存，同时兼容读取旧目录内文件
+- `.versions/` 改为外部 `versions/`
+- `evolution-log.jsonl` 改为外部保存
+- `/api/config` 已返回 `meta_path`
+- Web 顶部 skills 路径增加元数据目录提示
+- `scripts/deploy.sh` 已透传 `SKILLS_MANAGER_META_DIR` 和 AI provider 相关环境变量
+- 已用临时 skill 目录验证：保存类型、保存测试用例、保存版本快照均不再写入被管理 skill 目录
+- 已将官方 `hatch-pet` 目录里的旧 `.skill-meta.json` 迁到 `/tmp/hatch-pet.skill-meta.legacy.json` 备份
+- 已确认迁移后 `hatch-pet` 详情仍可读取外部 meta，且官方 skill 目录不再包含管理台缓存文件

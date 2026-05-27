@@ -60,6 +60,7 @@ chmod +x scripts/deploy.sh
 APP_HOST=0.0.0.0
 APP_PORT=7890
 SKILLS_PATH=/path/to/your/skills
+SKILLS_MANAGER_META_DIR=/path/to/manager-meta
 ANTHROPIC_API_KEY=sk-ant-...
 PIP_INDEX_URL=https://pypi.org/simple
 PIP_TRUSTED_HOST=pypi.org
@@ -129,6 +130,8 @@ export ANTHROPIC_MODEL=claude-sonnet-4-6
 
 补充说明：
 
+- 管理台元数据默认写入项目内 `runtime/meta/`，不再写进被管理的 skill 目录
+- `test-cases.json`、摘要缓存、测试结果、版本快照和进化日志都属于管理台元数据
 - `恢复到基线` 前会自动保存一个 `pre-restore` 快照，防止误操作
 - 版本历史会展示来源、时间、分数
 - 历史支持前端分页和筛选

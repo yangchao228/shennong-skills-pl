@@ -3,7 +3,7 @@
 
 from flask import Flask, jsonify, request, send_from_directory, Response, stream_with_context
 from flask_cors import CORS
-import os, re, json, yaml, shutil, threading, time, queue
+import os, re, json, yaml, shutil, threading, time, queue, hashlib
 from pathlib import Path
 from datetime import datetime
 from typing import Generator
@@ -69,14 +69,14 @@ def start_watcher():
 
     def handle_skill_changed(skill_id: str, skill_dir: Path):
         """Run after a SKILL.md is modified externally."""
-        test_file = skill_dir / "test-cases.json"
+        test_file = get_test_cases_file(skill_dir)
         meta = load_meta(skill_dir)
 
         broadcast_notification({
             "type": "file_changed",
             "skill_id": skill_id,
             "message": f"检测到 {skill_id}/SKILL.md 已修改",
-            "has_tests": test_file.exists(),
+            "has_tests": has_test_cases(skill_dir),
         })
 
         if not test_file.exists():
@@ -189,6 +189,38 @@ def get_skills_path() -> Path:
     local = Path(".claude") / "skills"
     if local.exists(): return local
     return Path.home() / ".claude" / "skills"
+
+def get_manager_meta_root() -> Path:
+    env = os.environ.get("SKILLS_MANAGER_META_DIR") or ""
+    if env:
+        return Path(env).expanduser()
+    return Path("runtime") / "meta"
+
+def get_skill_state_dir(skill_dir: Path) -> Path:
+    resolved = str(skill_dir.expanduser().resolve())
+    digest = hashlib.sha256(resolved.encode("utf-8")).hexdigest()[:16]
+    return get_manager_meta_root() / digest
+
+def ensure_skill_state_dir(skill_dir: Path) -> Path:
+    state_dir = get_skill_state_dir(skill_dir)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    pointer = state_dir / "skill-path.json"
+    if not pointer.exists():
+        pointer.write_text(
+            json.dumps({"skill_path": str(skill_dir.expanduser().resolve())}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    return state_dir
+
+def get_test_cases_file(skill_dir: Path, for_write: bool = False) -> Path:
+    state_file = get_skill_state_dir(skill_dir) / "test-cases.json"
+    if for_write:
+        return ensure_skill_state_dir(skill_dir) / "test-cases.json"
+    legacy_file = skill_dir / "test-cases.json"
+    return state_file if state_file.exists() else legacy_file
+
+def has_test_cases(skill_dir: Path) -> bool:
+    return (get_skill_state_dir(skill_dir) / "test-cases.json").exists() or (skill_dir / "test-cases.json").exists()
 
 # ── Core helpers ────────────────────────────────────────────
 def parse_frontmatter(content: str) -> dict:
@@ -314,15 +346,22 @@ def check_health(skill_dir: Path) -> dict:
     return finalize(issues, score)
 
 def load_meta(skill_dir: Path) -> dict:
-    f = skill_dir / ".skill-meta.json"
-    if f.exists():
-        try: return json.loads(f.read_text())
+    f = get_skill_state_dir(skill_dir) / "meta.json"
+    legacy = skill_dir / ".skill-meta.json"
+    source = f if f.exists() else legacy
+    if source.exists():
+        try:
+            data = json.loads(source.read_text(encoding="utf-8"))
+            if source == legacy and not f.exists():
+                save_meta(skill_dir, data)
+            return data
         except: pass
     return {}
 
 def save_meta(skill_dir: Path, meta: dict):
-    (skill_dir / ".skill-meta.json").write_text(
-        json.dumps(meta, ensure_ascii=False, indent=2))
+    state_dir = ensure_skill_state_dir(skill_dir)
+    (state_dir / "meta.json").write_text(
+        json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def get_skill_mtime_iso(skill_md: Path) -> str:
     return datetime.fromtimestamp(skill_md.stat().st_mtime).isoformat()
@@ -431,16 +470,16 @@ def strip_code_fence(text: str) -> str:
     return text.strip()
 
 def get_ollama_base_url() -> str:
-    return os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+    return (os.environ.get("OLLAMA_BASE_URL") or "http://127.0.0.1:11434").rstrip("/")
 
 def get_ollama_model() -> str:
-    return os.environ.get("OLLAMA_MODEL", "glm4:latest")
+    return os.environ.get("OLLAMA_MODEL") or "glm4:latest"
 
 def get_ai_provider() -> str:
-    return os.environ.get("AI_PROVIDER", "auto").strip().lower()
+    return (os.environ.get("AI_PROVIDER") or "auto").strip().lower()
 
 def get_anthropic_model() -> str:
-    return os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+    return os.environ.get("ANTHROPIC_MODEL") or "claude-sonnet-4-6"
 
 def ollama_available() -> bool:
     import httpx
@@ -557,7 +596,7 @@ def scan_skills(path: Path) -> list:
                 "blocking_count": health["counts"]["blocking"],
                 "risk_count": health["counts"]["risk"],
                 "optimization_count": health["counts"]["optimization"],
-                "has_tests": (d / "test-cases.json").exists(),
+                "has_tests": has_test_cases(d),
             })
         except Exception as e:
             skills.append({"id": d.name, "name": d.name, "error": str(e),
@@ -626,7 +665,7 @@ def compute_skill_score(results: list) -> float:
 
 # ── Version control ─────────────────────────────────────────
 def get_versions_dir(skill_dir: Path) -> Path:
-    return skill_dir / ".versions"
+    return get_skill_state_dir(skill_dir) / "versions"
 
 def get_version_index_file(skill_dir: Path) -> Path:
     return get_versions_dir(skill_dir) / "index.json"
@@ -641,7 +680,7 @@ def load_version_index(skill_dir: Path) -> dict:
     return {}
 
 def save_version_index(skill_dir: Path, index: dict):
-    vdir = get_versions_dir(skill_dir)
+    vdir = ensure_skill_state_dir(skill_dir) / "versions"
     vdir.mkdir(exist_ok=True)
     get_version_index_file(skill_dir).write_text(
         json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -649,7 +688,7 @@ def save_version_index(skill_dir: Path, index: dict):
 
 def save_version(skill_dir: Path, label: str = "", source: str = "manual",
                  score: float | None = None, note: str = "") -> str:
-    vdir = skill_dir / ".versions"
+    vdir = ensure_skill_state_dir(skill_dir) / "versions"
     vdir.mkdir(exist_ok=True)
     ts = datetime.now().strftime('%Y%m%d-%H%M%S')
     vid = f"{ts}-{label}" if label else ts
@@ -727,7 +766,8 @@ def build_diff_blocks(old_text: str, new_text: str) -> list[dict]:
     return blocks
 
 def append_evolution_log(skill_dir: Path, entry: dict):
-    with open(skill_dir / "evolution-log.jsonl", 'a', encoding='utf-8') as f:
+    state_dir = ensure_skill_state_dir(skill_dir)
+    with open(state_dir / "evolution-log.jsonl", 'a', encoding='utf-8') as f:
         f.write(json.dumps(entry, ensure_ascii=False) + '\n')
 
 def build_baseline_status(skill_dir: Path, meta: dict) -> dict:
@@ -789,7 +829,7 @@ def evolution_stream(skill_dir: Path, max_rounds: int) -> Generator:
         return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
     skill_md = skill_dir / "SKILL.md"
-    test_cases_file = skill_dir / "test-cases.json"
+    test_cases_file = get_test_cases_file(skill_dir)
 
     if not test_cases_file.exists():
         yield event({"type": "error", "message": "未找到 test-cases.json，请先添加测试用例"})
@@ -899,7 +939,13 @@ def config():
     except Exception:
         provider = get_ai_provider()
         model = get_ollama_model() if provider == "ollama" else get_anthropic_model()
-    return jsonify({"skills_path": str(p), "exists": p.exists(), "ai_provider": provider, "ai_model": model})
+    return jsonify({
+        "skills_path": str(p),
+        "meta_path": str(get_manager_meta_root()),
+        "exists": p.exists(),
+        "ai_provider": provider,
+        "ai_model": model,
+    })
 
 @app.route('/api/skills')
 def list_skills():
@@ -964,7 +1010,7 @@ SKILL.md:
 # Evolution
 @app.route('/api/skills/<skill_id>/evolve/tests', methods=['GET'])
 def get_tests(skill_id):
-    f = get_skills_path() / skill_id / "test-cases.json"
+    f = get_test_cases_file(get_skills_path() / skill_id)
     if not f.exists(): return jsonify({"cases": []})
     try: return jsonify(json.loads(f.read_text()))
     except: return jsonify({"cases": []})
@@ -973,8 +1019,8 @@ def get_tests(skill_id):
 def save_tests(skill_id):
     skill_dir = get_skills_path() / skill_id
     if not skill_dir.exists(): return jsonify({"error": "Not found"}), 404
-    (skill_dir / "test-cases.json").write_text(
-        json.dumps(request.get_json(), ensure_ascii=False, indent=2))
+    get_test_cases_file(skill_dir, for_write=True).write_text(
+        json.dumps(request.get_json(), ensure_ascii=False, indent=2), encoding="utf-8")
     return jsonify({"success": True})
 
 @app.route('/api/skills/<skill_id>/evolve/generate-tests', methods=['POST'])
@@ -998,8 +1044,8 @@ def generate_tests(skill_id):
 
 SKILL.md:
 {content[:2500]}""")
-        (skill_dir / "test-cases.json").write_text(
-            json.dumps(cases, ensure_ascii=False, indent=2))
+        get_test_cases_file(skill_dir, for_write=True).write_text(
+            json.dumps(cases, ensure_ascii=False, indent=2), encoding="utf-8")
         return jsonify(cases)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1008,7 +1054,7 @@ SKILL.md:
 def run_tests(skill_id):
     skill_dir = get_skills_path() / skill_id
     skill_md = skill_dir / "SKILL.md"
-    test_cases_file = skill_dir / "test-cases.json"
+    test_cases_file = get_test_cases_file(skill_dir)
     if not skill_md.exists(): return jsonify({"error": "Not found"}), 404
     if not test_cases_file.exists(): return jsonify({"error": "No test cases"}), 400
     content = skill_md.read_text(encoding='utf-8')
@@ -1074,7 +1120,7 @@ def set_baseline(skill_id):
     """Run tests and store the current skill as the baseline snapshot."""
     skill_dir = get_skills_path() / skill_id
     skill_md = skill_dir / "SKILL.md"
-    test_file = skill_dir / "test-cases.json"
+    test_file = get_test_cases_file(skill_dir)
     if not skill_md.exists(): return jsonify({"error": "Not found"}), 404
     if not test_file.exists(): return jsonify({"error": "No test cases"}), 400
 

@@ -412,7 +412,9 @@ async function api(path, opts = {}) {
 // ── Init ────────────────────────────────────────────────────
 async function init() {
   const cfg = await api('/config');
-  document.getElementById('skills-path').textContent = cfg.skills_path;
+  const pathBadge = document.getElementById('skills-path');
+  pathBadge.textContent = cfg.skills_path;
+  pathBadge.title = `管理台元数据: ${cfg.meta_path || '未配置'}`;
   if (!cfg.exists) document.getElementById('skills-path').style.color = 'var(--red)';
   await loadSkills();
 }

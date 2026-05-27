@@ -29,6 +29,7 @@ print_usage() {
   APP_HOST     默认 0.0.0.0
   APP_PORT     默认 7890
   SKILLS_PATH  skills 目录路径
+  SKILLS_MANAGER_META_DIR 管理台元数据目录
   ENV_FILE     默认项目根目录 .env
   VENV_DIR     默认项目根目录 .venv
   PIP_INDEX_URL 自定义 pip 源
@@ -127,7 +128,12 @@ start_app() {
     APP_HOST="$APP_HOST" \
     APP_PORT="$APP_PORT" \
     SKILLS_PATH="${SKILLS_PATH:-}" \
+    SKILLS_MANAGER_META_DIR="${SKILLS_MANAGER_META_DIR:-}" \
+    AI_PROVIDER="${AI_PROVIDER:-}" \
+    OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-}" \
+    OLLAMA_MODEL="${OLLAMA_MODEL:-}" \
     ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}" \
+    ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-}" \
     "${cmd[@]}" >>"$LOG_FILE" 2>&1 &
   echo $! >"$PID_FILE"
   sleep 1

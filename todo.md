@@ -239,3 +239,19 @@
 - CI 执行 `bash -n scripts/deploy.sh`
 - CI 执行 `python scripts/smoke_local.py`
 - 已本地验证 workflow YAML 可解析
+
+## 2026-05-28 页面内写回确认
+
+1. 盘点前端原生 `confirm/alert` 使用点
+2. 新增复用的页面内 modal
+3. 将恢复版本、恢复基线、应用候选改为页面内确认
+4. 将失败/成功提示改为页面内提示
+5. 验证 JS 语法、smoke test 与真实页面确认流程
+
+### Review
+
+- 已新增页面内 modal，统一承接确认与提示
+- 已移除前端原生 `confirm/alert`
+- 写保护恢复、恢复基线和应用候选会显示明确的写回风险说明
+- 写保护确认按钮显示为 `确认写回`
+- 已用真实页面验证应用候选 modal 可打开、可取消，取消后不写回官方 `hatch-pet/SKILL.md`

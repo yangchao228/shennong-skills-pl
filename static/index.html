@@ -368,6 +368,31 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .watcher-dot { width: 7px; height: 7px; border-radius: 50%;
   background: var(--muted); display: inline-block; transition: background .4s; }
 .watcher-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+/* ── Modal ── */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(7,10,18,.72); padding: 20px;
+}
+.modal-backdrop[hidden] { display: none; }
+.modal {
+  width: min(460px, 100%); background: var(--surface); border: 1px solid var(--border2);
+  border-radius: var(--r); box-shadow: 0 18px 60px rgba(0,0,0,.55); overflow: hidden;
+}
+.modal-hdr { padding: 14px 16px; background: var(--surface2); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px; }
+.modal-kind { width: 9px; height: 9px; border-radius: 50%; background: var(--primary); flex-shrink: 0; }
+.modal-kind.warn { background: var(--amber); }
+.modal-kind.error { background: var(--red); }
+.modal-kind.success { background: var(--green); }
+.modal-title { font-size: 14px; font-weight: 700; color: var(--heading); }
+.modal-body { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.modal-message { font-size: 13px; line-height: 1.7; color: var(--text); }
+.modal-detail { font-size: 12px; line-height: 1.6; color: var(--muted); background: var(--bg);
+  border: 1px solid var(--border); border-radius: 4px; padding: 10px; }
+.modal-actions { padding: 12px 16px; border-top: 1px solid var(--border); display: flex;
+  justify-content: flex-end; gap: 8px; background: var(--surface2); }
 </style>
 </head>
 <body>
@@ -400,14 +425,81 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   </div>
 </div>
 
+<div class="modal-backdrop" id="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-hdr">
+      <div class="modal-kind" id="modal-kind"></div>
+      <div class="modal-title" id="modal-title"></div>
+    </div>
+    <div class="modal-body">
+      <div class="modal-message" id="modal-message"></div>
+      <div class="modal-detail" id="modal-detail" hidden></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-sm" id="modal-cancel">取消</button>
+      <button class="btn btn-primary btn-sm" id="modal-confirm">确认</button>
+    </div>
+  </div>
+</div>
+
 <script>
 let allSkills = [], currentId = null, currentData = null, currentDiffOptions = {};
+let modalResolve = null, modalPreviousFocus = null;
 
 // ── API ─────────────────────────────────────────────────────
 async function api(path, opts = {}) {
   const r = await fetch('/api' + path, { headers: {'Content-Type':'application/json'}, ...opts });
   return r.json();
 }
+
+// ── Modal ───────────────────────────────────────────────────
+function closeModal(result) {
+  const backdrop = document.getElementById('modal-backdrop');
+  if (backdrop) backdrop.hidden = true;
+  if (modalPreviousFocus && typeof modalPreviousFocus.focus === 'function') modalPreviousFocus.focus();
+  const resolve = modalResolve;
+  modalResolve = null;
+  modalPreviousFocus = null;
+  if (resolve) resolve(result);
+}
+
+function openModal({ title, message, detail = '', kind = 'info', confirmText = '确认', cancelText = '取消', showCancel = false, confirmClass = 'btn-primary' }) {
+  if (modalResolve) closeModal(false);
+  modalPreviousFocus = document.activeElement;
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-message').textContent = message;
+  const detailEl = document.getElementById('modal-detail');
+  detailEl.textContent = detail;
+  detailEl.hidden = !detail;
+  const kindEl = document.getElementById('modal-kind');
+  kindEl.className = `modal-kind ${kind}`;
+  const cancelBtn = document.getElementById('modal-cancel');
+  cancelBtn.textContent = cancelText;
+  cancelBtn.hidden = !showCancel;
+  const confirmBtn = document.getElementById('modal-confirm');
+  confirmBtn.textContent = confirmText;
+  confirmBtn.className = `btn ${confirmClass} btn-sm`;
+  document.getElementById('modal-backdrop').hidden = false;
+  confirmBtn.focus();
+  return new Promise(resolve => { modalResolve = resolve; });
+}
+
+function confirmAction(opts) {
+  return openModal({ kind: 'warn', confirmText: '确认', cancelText: '取消', showCancel: true, ...opts });
+}
+
+function showMessage(opts) {
+  return openModal({ kind: 'info', confirmText: '知道了', showCancel: false, ...opts });
+}
+
+document.getElementById('modal-confirm').addEventListener('click', () => closeModal(true));
+document.getElementById('modal-cancel').addEventListener('click', () => closeModal(false));
+document.getElementById('modal-backdrop').addEventListener('click', e => {
+  if (e.target.id === 'modal-backdrop') closeModal(false);
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !document.getElementById('modal-backdrop').hidden) closeModal(false);
+});
 
 // ── Init ────────────────────────────────────────────────────
 async function init() {
@@ -797,7 +889,7 @@ async function runTestsOnly() {
         </div>`).join('')}
     `;
   } catch(e) {
-    alert('测试失败: ' + e.message);
+    await showMessage({ title: '测试失败', message: e.message, kind: 'error' });
   }
   btn.disabled = false; btn.innerHTML = '▷ 运行测试';
 }
@@ -823,19 +915,25 @@ async function loadHistory() {
 
 async function restoreVersion(versionId) {
   const protectedWrite = currentData?.write_protection?.requires_confirm_write;
-  const message = protectedWrite
-    ? `这是外部安装 skill。恢复到版本 ${versionId} 会覆盖真实 SKILL.md，是否显式确认写回？`
-    : `恢复到版本 ${versionId}？当前 SKILL.md 将被覆盖。`;
-  if (!confirm(message)) return;
+  const ok = await confirmAction({
+    title: protectedWrite ? '确认写回外部 skill' : '恢复历史版本',
+    message: `恢复到版本 ${versionId} 会覆盖当前 SKILL.md。`,
+    detail: protectedWrite
+      ? '当前 skill 来自受保护目录。确认后管理台会带 confirm_write=true 写回真实文件。'
+      : '应用前会自动保存 pre-restore 快照，方便回退。',
+    confirmText: protectedWrite ? '确认写回' : '恢复',
+    confirmClass: protectedWrite ? 'btn-green' : 'btn-primary',
+  });
+  if (!ok) return;
   const opts = protectedWrite
     ? {method:'POST', body: JSON.stringify({confirm_write: true})}
     : {method:'POST'};
   const r = await api(`/skills/${currentId}/evolve/restore/${versionId}`, opts);
   if (r.success) {
-    alert('已恢复');
-    selectSkill(currentId);
+    await showMessage({ title: '已恢复', message: `当前 SKILL.md 已恢复到版本 ${versionId}。`, kind: 'success' });
+    await selectSkill(currentId);
   } else if (r.error) {
-    alert('恢复失败: ' + (r.message || r.error));
+    await showMessage({ title: '恢复失败', message: r.message || r.error, kind: 'error' });
   }
 }
 
@@ -861,19 +959,25 @@ async function showCandidateDiff(versionId) {
 
 async function applyCandidate(versionId) {
   const protectedWrite = currentData?.write_protection?.requires_confirm_write;
-  const message = protectedWrite
-    ? `这是外部安装 skill。应用候选 ${versionId} 会覆盖真实 SKILL.md，是否显式确认写回？`
-    : `应用候选 ${versionId}？当前 SKILL.md 将被覆盖。`;
-  if (!confirm(message)) return;
+  const ok = await confirmAction({
+    title: protectedWrite ? '确认应用外部候选' : '应用候选版本',
+    message: `应用候选 ${versionId} 会覆盖当前 SKILL.md。`,
+    detail: protectedWrite
+      ? '当前 skill 来自受保护目录。确认后管理台会带 confirm_write=true 写回真实文件，并先保存应用前快照。'
+      : '应用前会自动保存 pre-apply-candidate 快照，方便回退。',
+    confirmText: protectedWrite ? '确认写回' : '应用候选',
+    confirmClass: 'btn-green',
+  });
+  if (!ok) return;
   const opts = protectedWrite
     ? {method:'POST', body: JSON.stringify({confirm_write: true})}
     : {method:'POST'};
   const data = await api(`/skills/${currentId}/evolve/candidate/${versionId}/apply`, opts);
   if (data.error) {
-    alert('应用失败: ' + (data.message || data.error));
+    await showMessage({ title: '应用失败', message: data.message || data.error, kind: 'error' });
     return;
   }
-  alert('候选已应用');
+  await showMessage({ title: '候选已应用', message: `候选 ${versionId} 已写入 SKILL.md。`, kind: 'success' });
   await selectSkill(currentId);
 }
 
@@ -894,7 +998,7 @@ async function setBaseline() {
   } catch(e) {
     btn.innerHTML = '⚑ 保存为基线';
     btn.disabled = false;
-    alert('失败: ' + e.message);
+    await showMessage({ title: '保存基线失败', message: e.message, kind: 'error' });
   }
 }
 
@@ -902,10 +1006,16 @@ async function restoreBaseline() {
   const btn = document.getElementById('restore-baseline-btn');
   if (!btn || btn.disabled) return;
   const protectedWrite = currentData?.write_protection?.requires_confirm_write;
-  const message = protectedWrite
-    ? '这是外部安装 skill。恢复到基线会覆盖真实 SKILL.md，是否显式确认写回？'
-    : '恢复到基线会直接覆盖当前本地 SKILL.md，是否继续？';
-  if (!confirm(message)) return;
+  const ok = await confirmAction({
+    title: protectedWrite ? '确认写回外部 skill' : '恢复到基线',
+    message: '恢复到基线会覆盖当前 SKILL.md。',
+    detail: protectedWrite
+      ? '当前 skill 来自受保护目录。确认后管理台会带 confirm_write=true 写回真实文件。'
+      : '恢复前会自动保存 pre-restore 快照，方便回退。',
+    confirmText: protectedWrite ? '确认写回' : '恢复到基线',
+    confirmClass: protectedWrite ? 'btn-green' : 'btn-primary',
+  });
+  if (!ok) return;
   btn.disabled = true;
   try {
     const opts = protectedWrite
@@ -915,7 +1025,7 @@ async function restoreBaseline() {
     if (data.error) throw new Error(data.error);
     await selectSkill(currentId);
   } catch (e) {
-    alert('恢复失败: ' + e.message);
+    await showMessage({ title: '恢复失败', message: e.message, kind: 'error' });
     btn.disabled = false;
   }
 }
@@ -931,7 +1041,7 @@ async function regenerateSummary() {
     currentData.overview_summary = data.summary;
     renderDetail(currentData);
   } catch (e) {
-    alert('摘要生成失败: ' + e.message);
+    await showMessage({ title: '摘要生成失败', message: e.message, kind: 'error' });
     btn.disabled = false;
     btn.innerHTML = '重新生成摘要';
   }

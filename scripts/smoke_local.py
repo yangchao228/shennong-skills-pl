@@ -40,6 +40,34 @@ If anything fails, explain the error.
     )
     return skill_dir
 
+def write_fake_codex(bin_dir: Path) -> Path:
+    fake = bin_dir / "codex"
+    fake.write_text(
+        f"""#!{sys.executable}
+import sys
+from pathlib import Path
+
+if sys.argv[1:3] == ["exec", "--help"]:
+    raise SystemExit(0)
+
+output_path = None
+for i, arg in enumerate(sys.argv):
+    if arg in ("-o", "--output-last-message") and i + 1 < len(sys.argv):
+        output_path = sys.argv[i + 1]
+
+if output_path is None:
+    print("missing output path", file=sys.stderr)
+    raise SystemExit(2)
+
+_ = sys.stdin.read()
+Path(output_path).write_text('{{"summary":"fake codex ok","usage":[],"recommended_scenarios":[],"cautions":[]}}', encoding="utf-8")
+raise SystemExit(0)
+""",
+        encoding="utf-8",
+    )
+    fake.chmod(0o755)
+    return fake
+
 
 def assert_skill_dir_clean(skill_dir: Path) -> None:
     forbidden = [
@@ -80,20 +108,26 @@ def run_node_check() -> None:
 
 
 def main() -> int:
-    with tempfile.TemporaryDirectory(prefix="sm-skills.") as skills_tmp, tempfile.TemporaryDirectory(prefix="sm-meta.") as meta_tmp:
+    with tempfile.TemporaryDirectory(prefix="sm-skills.") as skills_tmp, tempfile.TemporaryDirectory(prefix="sm-meta.") as meta_tmp, tempfile.TemporaryDirectory(prefix="sm-bin.") as bin_tmp:
         skills_dir = Path(skills_tmp)
         meta_dir = Path(meta_tmp)
+        fake_codex = write_fake_codex(Path(bin_tmp))
         skill_dir = write_demo_skill(skills_dir)
 
         os.environ["SKILLS_PATH"] = str(skills_dir)
         os.environ["SKILLS_MANAGER_META_DIR"] = str(meta_dir)
         os.environ["SKILLS_MANAGER_PROTECTED_ROOTS"] = str(skills_dir)
-        os.environ["AI_PROVIDER"] = "auto"
+        os.environ["AI_PROVIDER"] = "codex"
+        os.environ["CODEX_COMMAND"] = str(fake_codex)
+        os.environ["CODEX_MODEL"] = "fake-model"
 
         sys.path.insert(0, str(ROOT))
         import app  # noqa: PLC0415
 
         client = app.app.test_client()
+        check(app.resolve_ai_provider() == "codex", "codex provider did not resolve")
+        codex_json = app.ollama_generate_json("return json")
+        check(codex_json["summary"] == "fake codex ok", "codex json generation failed")
 
         cfg = client.get("/api/config").get_json()
         check(cfg["skills_path"] == str(skills_dir), "config skills_path mismatch")

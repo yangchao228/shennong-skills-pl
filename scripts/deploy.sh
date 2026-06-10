@@ -9,7 +9,7 @@ PID_FILE="$RUNTIME_DIR/skills-manager.pid"
 LOG_FILE="$RUNTIME_DIR/skills-manager.log"
 ENV_FILE="${ENV_FILE:-$ROOT_DIR/.env}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
-APP_HOST="${APP_HOST:-0.0.0.0}"
+APP_HOST="${APP_HOST:-127.0.0.1}"
 APP_PORT="${APP_PORT:-7890}"
 PIP_INDEX_URL="${PIP_INDEX_URL:-}"
 PIP_TRUSTED_HOST="${PIP_TRUSTED_HOST:-}"
@@ -26,7 +26,7 @@ print_usage() {
 
 可选环境变量:
   PYTHON_BIN   默认 python3
-  APP_HOST     默认 0.0.0.0
+  APP_HOST     默认 127.0.0.1
   APP_PORT     默认 7890
   SKILLS_PATH  skills 目录路径
   SKILLS_MANAGER_META_DIR 管理台元数据目录
@@ -35,6 +35,12 @@ print_usage() {
   VENV_DIR     默认项目根目录 .venv
   PIP_INDEX_URL 自定义 pip 源
   PIP_TRUSTED_HOST 对应可信 host
+  AI_PROVIDER  auto / ollama / anthropic / openai_codex / codex
+  OPENAI_CODEX_MODEL OpenAI Codex API 模型，可选
+  CODEX_COMMAND 本地 Codex CLI 命令，默认 codex
+  CODEX_MODEL   Codex 模型，可选
+  CODEX_PROFILE Codex 配置 profile，可选
+  HTTP_PROXY / HTTPS_PROXY / ALL_PROXY 本地模型或 Codex CLI 代理
 EOF
 }
 
@@ -58,7 +64,7 @@ load_env() {
     set +a
   fi
 
-  APP_HOST="${APP_HOST:-0.0.0.0}"
+  APP_HOST="${APP_HOST:-127.0.0.1}"
   APP_PORT="${APP_PORT:-7890}"
 }
 
@@ -136,6 +142,16 @@ start_app() {
     OLLAMA_MODEL="${OLLAMA_MODEL:-}" \
     ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}" \
     ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-}" \
+    OPENAI_API_KEY="${OPENAI_API_KEY:-}" \
+    OPENAI_CODEX_MODEL="${OPENAI_CODEX_MODEL:-}" \
+    CODEX_COMMAND="${CODEX_COMMAND:-}" \
+    CODEX_MODEL="${CODEX_MODEL:-}" \
+    CODEX_PROFILE="${CODEX_PROFILE:-}" \
+    CODEX_TIMEOUT_SECONDS="${CODEX_TIMEOUT_SECONDS:-}" \
+    HTTP_PROXY="${HTTP_PROXY:-}" \
+    HTTPS_PROXY="${HTTPS_PROXY:-}" \
+    ALL_PROXY="${ALL_PROXY:-}" \
+    NO_PROXY="${NO_PROXY:-}" \
     "${cmd[@]}" >>"$LOG_FILE" 2>&1 &
   echo $! >"$PID_FILE"
   sleep 1

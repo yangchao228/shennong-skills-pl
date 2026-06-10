@@ -25,8 +25,11 @@ jobs:
 
       - name: Syntax checks
         run: |
-          python -m py_compile app.py scripts/smoke_local.py
+          python -m py_compile app.py scripts/smoke_local.py scripts/e2e_local.py
           bash -n scripts/deploy.sh
 
       - name: Local smoke test
         run: python scripts/smoke_local.py
+
+      - name: Local E2E test
+        run: python scripts/e2e_local.py

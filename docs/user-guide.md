@@ -35,6 +35,8 @@
 - 如需 AI 分析 / 生成测试 / 自动进化，需要至少一种模型能力：
   - 本地 Ollama
   - 或 Anthropic API Key
+  - 或 OpenAI API Key
+  - 或已经登录的本地 Codex CLI
 
 ### skills 目录默认规则
 
@@ -115,7 +117,7 @@ chmod +x scripts/deploy.sh
 
 | 变量 | 作用 | 默认值 |
 |---|---|---|
-| `APP_HOST` | 服务监听地址 | `0.0.0.0` |
+| `APP_HOST` | 服务监听地址 | `127.0.0.1` |
 | `APP_PORT` | 服务端口 | `7890` |
 | `SKILLS_PATH` | skills 根目录 | 自动检测 |
 | `SKILLS_MANAGER_META_DIR` | 管理台元数据目录 | `runtime/meta` |
@@ -125,6 +127,16 @@ chmod +x scripts/deploy.sh
 | `OLLAMA_MODEL` | 默认 Ollama 模型 | `glm4:latest` |
 | `ANTHROPIC_API_KEY` | Anthropic 密钥 | 空 |
 | `ANTHROPIC_MODEL` | Anthropic 模型 | `claude-sonnet-4-6` |
+| `OPENAI_API_KEY` | OpenAI API 密钥，用于 SDK 调用 Codex 模型 | 空 |
+| `OPENAI_CODEX_MODEL` | OpenAI Codex API 模型 | `gpt-5.2-codex` |
+| `CODEX_COMMAND` | 本地 Codex CLI 命令 | `codex` |
+| `CODEX_MODEL` | Codex 使用的模型，留空则用 Codex 默认配置 | 空 |
+| `CODEX_PROFILE` | Codex 配置 profile，留空则不用 | 空 |
+| `CODEX_TIMEOUT_SECONDS` | Codex 单次调用超时时间 | `180` |
+| `HTTP_PROXY` | HTTP 代理，Codex CLI 可继承 | 空 |
+| `HTTPS_PROXY` | HTTPS 代理，Codex CLI 可继承 | 空 |
+| `ALL_PROXY` | SOCKS/全局代理，Codex CLI 可继承 | 空 |
+| `NO_PROXY` | 不走代理的地址 | `127.0.0.1,localhost` |
 
 ### 元数据存储规则
 
@@ -179,7 +191,9 @@ AI_PROVIDER=auto
 1. 优先检查本地 Ollama 是否可用，且模型是否存在
 2. 如果可用，走 Ollama
 3. 否则如果设置了 `ANTHROPIC_API_KEY`，走 Anthropic
-4. 两者都不可用，则 AI 相关功能会失败
+4. 否则如果设置了 `OPENAI_API_KEY`，走 OpenAI Python SDK 调用 Codex 模型
+5. 否则如果本机存在 Codex CLI，走本地 Codex
+6. 都不可用，则 AI 相关功能会失败
 
 如果你想强制指定：
 
@@ -192,6 +206,27 @@ AI_PROVIDER=ollama
 ```bash
 AI_PROVIDER=anthropic
 ```
+
+或：
+
+```bash
+AI_PROVIDER=openai_codex
+OPENAI_API_KEY=sk-...
+OPENAI_CODEX_MODEL=gpt-5.2-codex
+```
+
+或：
+
+```bash
+AI_PROVIDER=codex
+CODEX_COMMAND=codex
+CODEX_MODEL=gpt-5
+HTTP_PROXY=http://127.0.0.1:7890
+HTTPS_PROXY=http://127.0.0.1:7890
+ALL_PROXY=socks5://127.0.0.1:7891
+```
+
+`openai_codex` provider 使用 OpenAI Python SDK 直连 Codex 模型，需要 `OPENAI_API_KEY`。`codex` provider 会通过本机 `codex exec` 非交互调用，并固定使用只读沙箱、永不请求审批和临时 session；它依赖你本机已经完成 `codex login`，适合复用本地 Codex 配置。如果目标是本机开源模型，优先使用 Ollama。
 
 ## 5. 界面说明
 
@@ -477,6 +512,8 @@ AI_PROVIDER=anthropic
 - 本地 Ollama 没启动
 - `OLLAMA_MODEL` 不存在
 - 没有配置 `ANTHROPIC_API_KEY`
+- `AI_PROVIDER=openai_codex` 时没有配置 `OPENAI_API_KEY`
+- `AI_PROVIDER=codex` 时本机没有安装或登录 Codex CLI
 - 当前网络或代理配置导致模型调用失败
 
 先确认：
@@ -485,6 +522,8 @@ AI_PROVIDER=anthropic
 echo $AI_PROVIDER
 echo $OLLAMA_BASE_URL
 echo $OLLAMA_MODEL
+echo $OPENAI_CODEX_MODEL
+codex doctor --summary
 ```
 
 ### 自动进化一直没有提升
@@ -520,10 +559,15 @@ echo $OLLAMA_MODEL
 如果你在修改这个项目本身，建议每次改核心链路后运行：
 
 ```bash
+python3 -m py_compile app.py scripts/smoke_local.py scripts/e2e_local.py
+bash -n scripts/deploy.sh
 ./.venv/bin/python scripts/smoke_local.py
+./.venv/bin/python scripts/e2e_local.py
 ```
 
 这个脚本会创建临时 skills/meta 目录，验证元数据外置、写回保护、候选版本 Diff 和应用候选流程，不会污染真实 skill 目录。
+
+其中 `scripts/e2e_local.py` 会使用 fake Codex CLI 覆盖主要 HTTP 路由，不启动端口，也不会调用真实模型。
 
 ## 14. 你真正该关心什么
 

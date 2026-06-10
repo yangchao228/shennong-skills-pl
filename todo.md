@@ -255,3 +255,79 @@
 - 写保护恢复、恢复基线和应用候选会显示明确的写回风险说明
 - 写保护确认按钮显示为 `确认写回`
 - 已用真实页面验证应用候选 modal 可打开、可取消，取消后不写回官方 `hatch-pet/SKILL.md`
+
+## 2026-05-28 Skillfully 产品调研
+
+1. 调研 Skillfully 官网、Guide 与 Blog 公开信息
+2. 提炼其 QA、analytics、feedback loop、skill contract 方法论
+3. 对照本项目“本机 skills 管理与专属技能迭代”定位
+4. 列出值得引入和暂不建议引入的功能
+5. 生成调研文档
+
+### Review
+
+- 已新增 `docs/skillfully-product-research.md`
+- 判断 Skillfully 核心价值是“发布后真实反馈闭环”，不是单纯 skill 编写器
+- 对本项目最值得引入的是本地运行反馈、skill contract 检查、使用看板、反馈聚类和候选 Diff 审批
+- 不建议现阶段引入公开发布目录、云端 workspace、多作者协作和强依赖外部 runtime tracking
+
+## 2026-06-09 本地 Codex AI Provider
+
+1. 盘点现有 AI provider 适配层
+2. 设计本地 `codex exec` 的只读调用方式
+3. 新增 `codex` provider 与 `auto` 选择逻辑
+4. 更新部署环境变量与使用文档
+5. 扩展 smoke test 覆盖 Codex provider 命令拼接
+
+### Review
+
+- 已新增 `openai_codex` provider，通过 OpenAI Python SDK 调用 Codex 模型，默认模型 `gpt-5.2-codex`
+- 已新增 `codex` provider，通过本机 `codex exec` 非交互调用，使用只读沙箱、永不请求审批和临时 session
+- `auto` 选择顺序为 Ollama、Anthropic、OpenAI Codex API、本地 Codex CLI，保留原有 Anthropic 优先级
+- 已更新 `.env.example`、部署脚本、README 和用户指南
+- 已扩展 smoke test，用 fake Codex CLI 验证本地 Codex provider，不依赖真实账号
+- 已补充 `HTTP_PROXY`、`HTTPS_PROXY`、`ALL_PROXY`、`NO_PROXY` 代理配置说明与部署透传，便于本地 Codex CLI 走代理
+
+## 2026-06-10 本地部署全功能测试
+
+1. 复查当前未提交改动与测试入口
+2. 运行语法检查、本地 smoke test 和 Codex provider 定向验证
+3. 使用临时 skills/meta 目录本地部署服务
+4. 覆盖配置、列表、详情、类型、测试用例、运行测试、基线、历史、Diff、恢复、候选应用、摘要、AI 分析、生成测试、自动进化、通知接口
+5. 用浏览器验证 UI 主路径
+
+### Review
+
+- 已通过 `python3 -m py_compile app.py scripts/smoke_local.py`
+- 已通过 `bash -n scripts/deploy.sh`
+- 已通过 `./.venv/bin/python scripts/smoke_local.py`
+- 已用临时 skills/meta 目录和 fake Codex CLI 覆盖 Flask API 主链路：配置、列表、详情、类型保存、AI 分析、生成测试、读取测试、运行测试、保存基线、历史、基线 diff、普通恢复、写保护恢复阻断/确认、候选 diff、候选应用阻断/确认、摘要重生成、自动进化 SSE、通知 SSE
+- 已确认 `AI_PROVIDER=codex` 配置在 `/api/config` 中正确识别，fake Codex provider 可完成 JSON 与文本返回
+- 真实本地 Codex 调用在当前工具沙箱内被阻止：Codex CLI 需要写 `~/.codex/state_5.sqlite`，沙箱只读；沙箱外升级执行申请连续超时，未能完成真实模型调用
+- 本地 Flask 端口部署在当前工具沙箱内被阻止：绑定 `127.0.0.1:18089` 返回 `Operation not permitted`；沙箱外启动申请超时，因此未完成浏览器级页面点击验证
+- 部署脚本可进入安装与启动流程，但当前沙箱下传入代理变量后 pip 会尝试走代理并输出连接 warning；依赖已安装时不影响后续测试
+- 之后经用户明确要求继续，已获得沙箱外启动权限并完成真实浏览器测试：页面可加载，列表展示 `demo-skill`/`protected-skill`，详情页、AI 分析、版本与测试、生成测试、运行测试、保存基线、写保护标识、写保护恢复确认 modal 均通过；浏览器 console 未发现 error/warn
+- 测试完成后尝试停止沙箱外 Flask 进程 `PID=82790`，普通沙箱无权限，升级 `kill 82790` 被审批系统拒绝；需要用户在本机终端手动执行 `kill 82790` 或关闭对应 Python 进程
+
+## 2026-06-10 开源收口与 E2E 固化
+
+1. 停止上轮浏览器测试遗留的 Flask 服务
+2. 将临时 API 全链路测试沉淀为 `scripts/e2e_local.py`
+3. 补充 `LICENSE`、`SECURITY.md`、`CONTRIBUTING.md`
+4. 将默认监听地址从 `0.0.0.0` 收敛为 `127.0.0.1`
+5. 更新 README、用户指南和 CI workflow
+6. 运行语法检查、smoke test 和 E2E test
+
+### Review
+
+- 已停止上轮本地测试遗留的 `127.0.0.1:18089` Flask 服务，端口已释放
+- 已新增 `scripts/e2e_local.py`，使用临时 skills/meta 目录和 fake Codex CLI 覆盖主要 Flask 路由，不启动端口、不调用真实模型、不污染真实 skill
+- 已新增 `LICENSE`，当前采用 MIT License
+- 已新增 `SECURITY.md`，明确无认证、本地优先、写回风险、密钥和公网暴露边界
+- 已新增 `CONTRIBUTING.md`，说明开发环境、验证命令、改动范围和安全规则
+- 已将 `app.py`、`scripts/deploy.sh`、`.env.example` 的默认监听地址改为 `127.0.0.1`
+- 已更新 README、用户指南和 GitHub Actions workflow，把 `scripts/e2e_local.py` 纳入标准验证
+- 已通过 `python3 -m py_compile app.py scripts/smoke_local.py scripts/e2e_local.py`
+- 已通过 `bash -n scripts/deploy.sh`
+- 已通过 `./.venv/bin/python scripts/smoke_local.py`
+- 已通过 `./.venv/bin/python scripts/e2e_local.py`

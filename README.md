@@ -7,23 +7,26 @@ Skills 管理与进化平台，Web 界面，本地运行。
 ## 安装
 
 ```bash
-pip install -r requirements.txt
+python3 -m venv .venv
+./.venv/bin/pip install -r requirements.txt
 ```
 
 ## 启动
 
 ```bash
 # 自动检测 ~/.claude/skills 或 .claude/skills
-python app.py
+./.venv/bin/python app.py
 
 # 指定路径
-SKILLS_PATH=/path/to/your/skills python app.py
+SKILLS_PATH=/path/to/your/skills ./.venv/bin/python app.py
 
 # 指定端口
-python app.py 8080
+./.venv/bin/python app.py 8080
 ```
 
 打开 http://localhost:7890
+
+默认只监听 `127.0.0.1`。当前项目没有登录鉴权，不要直接暴露到公网。
 
 ## 一键部署
 
@@ -57,12 +60,22 @@ chmod +x scripts/deploy.sh
 如需自定义端口或 skills 目录，可编辑 `.env`：
 
 ```bash
-APP_HOST=0.0.0.0
+APP_HOST=127.0.0.1
 APP_PORT=7890
 SKILLS_PATH=/path/to/your/skills
 SKILLS_MANAGER_META_DIR=/path/to/manager-meta
 SKILLS_MANAGER_PROTECTED_ROOTS=/path/to/protected/skills
 ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+OPENAI_CODEX_MODEL=gpt-5.2-codex
+CODEX_COMMAND=codex
+CODEX_MODEL=
+CODEX_PROFILE=
+CODEX_TIMEOUT_SECONDS=180
+HTTP_PROXY=http://127.0.0.1:7890
+HTTPS_PROXY=http://127.0.0.1:7890
+ALL_PROXY=socks5://127.0.0.1:7891
+NO_PROXY=127.0.0.1,localhost
 PIP_INDEX_URL=https://pypi.org/simple
 PIP_TRUSTED_HOST=pypi.org
 ```
@@ -76,6 +89,8 @@ PIP_TRUSTED_HOST=pypi.org
 - `AI_PROVIDER=auto`
 - 优先使用当前可访问的本地 Ollama
 - 若本地 Ollama 不可用，再回退到 Anthropic
+- 若没有 Anthropic Key，但设置了 `OPENAI_API_KEY`，再回退到 OpenAI Codex API
+- 若没有 OpenAI API Key，但本机可用 Codex CLI，再回退到本地 Codex
 
 默认 Ollama 模型是 `glm4:latest`。
 
@@ -103,6 +118,19 @@ export AI_PROVIDER=ollama
 export AI_PROVIDER=anthropic
 export ANTHROPIC_API_KEY=sk-ant-...
 export ANTHROPIC_MODEL=claude-sonnet-4-6
+
+# 强制使用 OpenAI Python SDK 调用 Codex 模型
+export AI_PROVIDER=openai_codex
+export OPENAI_API_KEY=sk-...
+export OPENAI_CODEX_MODEL=gpt-5.2-codex
+
+# 强制使用本地 Codex CLI
+export AI_PROVIDER=codex
+export CODEX_COMMAND=codex
+export CODEX_MODEL=gpt-5
+export HTTP_PROXY=http://127.0.0.1:7890
+export HTTPS_PROXY=http://127.0.0.1:7890
+export ALL_PROXY=socks5://127.0.0.1:7891
 ```
 
 现在这些能力都走统一 provider 选择：
@@ -111,6 +139,8 @@ export ANTHROPIC_MODEL=claude-sonnet-4-6
 - AI 自动生成测试用例
 - 运行测试时的模型调用
 - 自动进化中的改进提案
+
+`openai_codex` provider 使用 OpenAI Python SDK 直接调用 Codex 模型，需要 `OPENAI_API_KEY`。`codex` provider 使用本机 `codex exec` 非交互调用，并固定为只读沙箱、永不请求审批、临时 session，适合已经在本机完成 `codex login` 的用户。如果你只想使用本机开源模型，优先使用 Ollama。
 
 ## Skill 类型分类
 
@@ -151,7 +181,20 @@ export ANTHROPIC_MODEL=claude-sonnet-4-6
 修改核心治理链路后，先跑本地 smoke test：
 
 ```bash
+python3 -m py_compile app.py scripts/smoke_local.py scripts/e2e_local.py
+bash -n scripts/deploy.sh
 ./.venv/bin/python scripts/smoke_local.py
+./.venv/bin/python scripts/e2e_local.py
 ```
 
-它会用临时 skills/meta 目录验证元数据外置、写回保护、候选 Diff 和候选应用流程。
+`smoke_local.py` 会用临时 skills/meta 目录验证元数据外置、写回保护、候选 Diff 和候选应用流程。
+
+`e2e_local.py` 会用 Flask test client、临时 skills/meta 目录和 fake Codex CLI 覆盖主要 HTTP 路由，不启动端口、不调用真实模型、不访问真实 skill 目录。
+
+## 安全
+
+- 默认监听 `127.0.0.1`
+- 当前没有认证层，不要直接公网暴露
+- `.env`、`.venv`、`runtime/` 不应提交
+- 对外部安装 skill，建议配置 `SKILLS_MANAGER_PROTECTED_ROOTS`
+- 更多说明见 [SECURITY.md](SECURITY.md)

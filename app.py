@@ -3,7 +3,7 @@
 
 from flask import Flask, jsonify, request, send_from_directory, Response, stream_with_context
 from flask_cors import CORS
-import os, re, json, yaml, shutil, threading, time, queue, hashlib
+import os, re, json, yaml, shutil, subprocess, tempfile, threading, time, queue, hashlib
 from pathlib import Path
 from datetime import datetime
 from typing import Generator
@@ -519,6 +519,25 @@ def get_ai_provider() -> str:
 def get_anthropic_model() -> str:
     return os.environ.get("ANTHROPIC_MODEL") or "claude-sonnet-4-6"
 
+def get_openai_codex_model() -> str:
+    return os.environ.get("OPENAI_CODEX_MODEL") or "gpt-5.2-codex"
+
+def get_codex_command() -> str:
+    return os.environ.get("CODEX_COMMAND") or "codex"
+
+def get_codex_model() -> str:
+    return os.environ.get("CODEX_MODEL") or ""
+
+def get_codex_profile() -> str:
+    return os.environ.get("CODEX_PROFILE") or ""
+
+def get_codex_timeout_seconds() -> int:
+    raw = os.environ.get("CODEX_TIMEOUT_SECONDS") or "180"
+    try:
+        return max(10, int(raw))
+    except ValueError:
+        return 180
+
 def ollama_available() -> bool:
     import httpx
 
@@ -532,15 +551,38 @@ def ollama_available() -> bool:
     except Exception:
         return False
 
+def codex_available() -> bool:
+    cmd = get_codex_command()
+    if not shutil.which(cmd):
+        return False
+    try:
+        subprocess.run(
+            [cmd, "exec", "--help"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+            check=True,
+        )
+        return True
+    except Exception:
+        return False
+
+def openai_codex_available() -> bool:
+    return bool(os.environ.get("OPENAI_API_KEY"))
+
 def resolve_ai_provider() -> str:
     provider = get_ai_provider()
-    if provider in {"ollama", "anthropic"}:
+    if provider in {"ollama", "anthropic", "openai_codex", "codex"}:
         return provider
     if ollama_available():
         return "ollama"
     if os.environ.get("ANTHROPIC_API_KEY"):
         return "anthropic"
-    raise RuntimeError("没有可用的 AI provider。请启动 Ollama，或设置 ANTHROPIC_API_KEY。")
+    if openai_codex_available():
+        return "openai_codex"
+    if codex_available():
+        return "codex"
+    raise RuntimeError("没有可用的 AI provider。请启动 Ollama、设置 ANTHROPIC_API_KEY、设置 OPENAI_API_KEY，或配置本地 Codex CLI。")
 
 def anthropic_generate_text(prompt: str, max_tokens: int, system: str | None = None) -> str:
     import anthropic as ac
@@ -555,6 +597,22 @@ def anthropic_generate_text(prompt: str, max_tokens: int, system: str | None = N
         kwargs["system"] = system
     resp = client.messages.create(**kwargs)
     return resp.content[0].text.strip()
+
+def openai_codex_generate_text(prompt: str, max_tokens: int, system: str | None = None,
+                               json_mode: bool = False) -> str:
+    from openai import OpenAI
+
+    final_prompt = prompt if not system else f"{system}\n\n用户请求：\n{prompt}"
+    if json_mode:
+        final_prompt = f"{final_prompt}\n\n只返回合法 JSON，不要解释，不要 markdown 代码块。"
+
+    client = OpenAI()
+    resp = client.responses.create(
+        model=get_openai_codex_model(),
+        input=final_prompt,
+        max_output_tokens=max_tokens,
+    )
+    return resp.output_text.strip()
 
 def ollama_generate_text(prompt: str, max_tokens: int, system: str | None = None,
                          json_mode: bool = False) -> str:
@@ -575,12 +633,72 @@ def ollama_generate_text(prompt: str, max_tokens: int, system: str | None = None
     resp.raise_for_status()
     return resp.json().get("response", "").strip()
 
+def codex_generate_text(prompt: str, max_tokens: int, system: str | None = None,
+                        json_mode: bool = False) -> str:
+    final_prompt = prompt if not system else f"{system}\n\n用户请求：\n{prompt}"
+    if json_mode:
+        final_prompt = f"{final_prompt}\n\n只返回合法 JSON，不要解释，不要 markdown 代码块。"
+
+    with tempfile.NamedTemporaryFile("r", encoding="utf-8", delete=False) as out_file:
+        output_path = out_file.name
+
+    cmd = [
+        get_codex_command(),
+        "--ask-for-approval=never",
+        "exec",
+        "--sandbox=read-only",
+        "--ephemeral",
+        "--skip-git-repo-check",
+        "--color=never",
+        "--output-last-message",
+        output_path,
+        "-",
+    ]
+    model = get_codex_model()
+    if model:
+        cmd[3:3] = ["--model", model]
+    profile = get_codex_profile()
+    if profile:
+        cmd[3:3] = ["--profile", profile]
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            input=final_prompt,
+            text=True,
+            capture_output=True,
+            timeout=get_codex_timeout_seconds(),
+            check=False,
+        )
+        output = Path(output_path).read_text(encoding="utf-8").strip()
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "").strip()
+            raise RuntimeError(f"Codex CLI 调用失败: {detail[:500]}")
+        if output:
+            return output
+        return (proc.stdout or "").strip()
+    finally:
+        Path(output_path).unlink(missing_ok=True)
+
 def ai_generate_text(prompt: str, max_tokens: int = 2000, system: str | None = None,
                      json_mode: bool = False) -> str:
     provider = resolve_ai_provider()
     if provider == "ollama":
         return ollama_generate_text(prompt, max_tokens=max_tokens, system=system, json_mode=json_mode)
+    if provider == "openai_codex":
+        return openai_codex_generate_text(prompt, max_tokens=max_tokens, system=system, json_mode=json_mode)
+    if provider == "codex":
+        return codex_generate_text(prompt, max_tokens=max_tokens, system=system, json_mode=json_mode)
     return anthropic_generate_text(prompt, max_tokens=max_tokens, system=system)
+
+def get_ai_model_label(provider: str) -> str:
+    if provider == "ollama":
+        return get_ollama_model()
+    if provider == "openai_codex":
+        return get_openai_codex_model()
+    if provider == "codex":
+        return get_codex_model() or get_codex_profile() or "codex-default"
+    return get_anthropic_model()
 
 def normalize_skill_type(raw: str, reason: str = "", summary: str = "") -> str:
     raw = (raw or "").strip().lower()
@@ -1012,10 +1130,10 @@ def config():
     p = get_skills_path()
     try:
         provider = resolve_ai_provider()
-        model = get_ollama_model() if provider == "ollama" else get_anthropic_model()
+        model = get_ai_model_label(provider)
     except Exception:
         provider = get_ai_provider()
-        model = get_ollama_model() if provider == "ollama" else get_anthropic_model()
+        model = get_ai_model_label(provider)
     return jsonify({
         "skills_path": str(p),
         "meta_path": str(get_manager_meta_root()),
@@ -1333,7 +1451,7 @@ def notifications():
 if __name__ == '__main__':
     import sys
     port = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("APP_PORT", 7890))
-    host = os.environ.get("APP_HOST", "0.0.0.0")
+    host = os.environ.get("APP_HOST", "127.0.0.1")
     print(f"\n  Skills Manager  →  http://{host}:{port}\n")
     start_watcher()
     app.run(host=host, port=port, debug=False, use_reloader=False)

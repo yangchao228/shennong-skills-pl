@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Skills Manager - Web interface for managing and evolving AI skills"""
 
-from flask import Flask, jsonify, request, send_from_directory, Response, stream_with_context
+from flask import Flask, jsonify, request, send_from_directory, Response, stream_with_context, has_request_context
 from flask_cors import CORS
-import os, re, json, yaml, shutil, subprocess, tempfile, threading, time, queue, hashlib
+import os, re, json, yaml, shutil, subprocess, tempfile, threading, time, queue, hashlib, secrets
 from pathlib import Path
 from datetime import datetime
 from typing import Generator
@@ -400,6 +400,199 @@ def save_meta(skill_dir: Path, meta: dict):
     state_dir = ensure_skill_state_dir(skill_dir)
     (state_dir / "meta.json").write_text(
         json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+
+FEEDBACK_MARKER_START = "<!-- skills-manager-feedback:start -->"
+FEEDBACK_MARKER_END = "<!-- skills-manager-feedback:end -->"
+FEEDBACK_CANDIDATE_HEADINGS = re.compile(
+    r"^\s{0,3}#{1,6}\s+.*("
+    r"completion|complete|final|done|deliver|delivery|report|summary|"
+    r"完成|最终|交付|验收|反馈|收尾|总结"
+    r").*$",
+    re.IGNORECASE,
+)
+
+def current_feedback_endpoint_url() -> str:
+    configured = (os.environ.get("SKILLS_MANAGER_PUBLIC_URL") or "").strip()
+    if configured:
+        base = configured
+    elif has_request_context():
+        base = request.host_url.rstrip("/")
+    else:
+        base = "http://127.0.0.1:7890"
+    return base.rstrip("/") + "/api/feedback/runs"
+
+def load_feedback_config(skill_dir: Path) -> dict:
+    return dict(load_meta(skill_dir).get("feedback_config") or {})
+
+def save_feedback_config(skill_dir: Path, config: dict):
+    meta = load_meta(skill_dir)
+    meta["feedback_config"] = config
+    save_meta(skill_dir, meta)
+
+def render_feedback_snippet(skill_id: str, install_id: str, token: str, endpoint_url: str) -> str:
+    return f"""{FEEDBACK_MARKER_START}
+## Feedback Collection
+
+After completing the task, or when blocked, submit one feedback event to the local Skills Manager if the endpoint is available.
+
+Rules:
+- Do this only after the final result is prepared, or after you have clearly reported a blocker.
+- Do not interrupt the main task to ask the user for feedback.
+- Do not include conversation transcripts, secrets, tokens, or unrelated user data.
+- If the endpoint is unavailable, continue normally and do not retry repeatedly.
+
+Submit a JSON event with one rating, a short reason, the instruction gap, and concrete evidence when available.
+
+Endpoint: `{endpoint_url}`
+Skill ID: `{skill_id}`
+Install ID: `{install_id}`
+
+Example command:
+
+```bash
+curl -sS -X POST '{endpoint_url}' \\
+  -H 'Content-Type: application/json' \\
+  -H 'X-Skills-Manager-Feedback-Token: {token}' \\
+  -d '{{"skill_id":"{skill_id}","install_id":"{install_id}","agent":"codex","rating":"neutral","task_summary":"short task summary","what_worked":"what worked","what_failed":"what was unclear or failed","suggested_fix":"what instruction should change","evidence":["command, diff, path, or check"]}}'
+```
+{FEEDBACK_MARKER_END}"""
+
+def ensure_feedback_config(skill_dir: Path, skill_id: str, enabled: bool = True) -> dict:
+    config = load_feedback_config(skill_dir)
+    if not config.get("install_id"):
+        config["install_id"] = f"{skill_id}-{secrets.token_hex(4)}"
+    if not config.get("token"):
+        config["token"] = secrets.token_urlsafe(18)
+    config["enabled"] = bool(enabled)
+    config["endpoint_url"] = current_feedback_endpoint_url()
+    config["snippet"] = render_feedback_snippet(
+        skill_id,
+        config["install_id"],
+        config["token"],
+        config["endpoint_url"],
+    )
+    save_feedback_config(skill_dir, config)
+    return config
+
+def feedback_snippet_installed(content: str) -> bool:
+    return FEEDBACK_MARKER_START in content and FEEDBACK_MARKER_END in content
+
+def build_skill_with_feedback_snippet(content: str, snippet: str) -> str:
+    marker_pattern = re.compile(
+        rf"\n*{re.escape(FEEDBACK_MARKER_START)}.*?{re.escape(FEEDBACK_MARKER_END)}\n*",
+        re.DOTALL,
+    )
+    if feedback_snippet_installed(content):
+        next_content = marker_pattern.sub("\n\n" + snippet.strip() + "\n", content).rstrip() + "\n"
+        return next_content
+
+    lines = content.splitlines()
+    insert_at = len(lines)
+    heading_idx = None
+    for idx, line in enumerate(lines):
+        if FEEDBACK_CANDIDATE_HEADINGS.match(line):
+            heading_idx = idx
+    if heading_idx is not None:
+        insert_at = len(lines)
+        for idx in range(heading_idx + 1, len(lines)):
+            if re.match(r"^\s{0,3}#{1,6}\s+", lines[idx]):
+                insert_at = idx
+                break
+
+    before = "\n".join(lines[:insert_at]).rstrip()
+    after = "\n".join(lines[insert_at:]).lstrip()
+    parts = [part for part in [before, snippet.strip(), after] if part]
+    return "\n\n".join(parts).rstrip() + "\n"
+
+def build_feedback_install_plan(skill_dir: Path, config: dict) -> dict:
+    skill_md = skill_dir / "SKILL.md"
+    current_content = skill_md.read_text(encoding="utf-8")
+    snippet = config.get("snippet") or render_feedback_snippet(
+        skill_dir.name,
+        config.get("install_id", ""),
+        config.get("token", ""),
+        config.get("endpoint_url") or current_feedback_endpoint_url(),
+    )
+    draft_content = build_skill_with_feedback_snippet(current_content, snippet)
+    blocks = build_diff_blocks(current_content, draft_content)
+    return {
+        "installed": feedback_snippet_installed(current_content),
+        "current_content": current_content,
+        "draft_content": draft_content,
+        "blocks": blocks,
+        "summary": {
+            "added": sum(1 for b in blocks if b["type"] == "added"),
+            "deleted": sum(1 for b in blocks if b["type"] == "deleted"),
+            "modified": sum(1 for b in blocks if b["type"] == "modified"),
+        },
+    }
+
+def public_feedback_config(skill_dir: Path, skill_id: str, config: dict, include_diff: bool = True) -> dict:
+    enabled = bool(config.get("enabled"))
+    response = {
+        "enabled": enabled,
+        "install_id": config.get("install_id"),
+        "token": config.get("token") if enabled else None,
+        "endpoint_url": config.get("endpoint_url") or current_feedback_endpoint_url(),
+        "snippet": config.get("snippet") if enabled else "",
+        "installed_at": config.get("installed_at"),
+        "installed_version_id": config.get("installed_version_id"),
+        "write_protection": write_protection_status(skill_dir),
+    }
+    if include_diff and enabled:
+        plan = build_feedback_install_plan(skill_dir, config)
+        response.update({
+            "installed": plan["installed"],
+            "blocks": plan["blocks"],
+            "summary": plan["summary"],
+        })
+    else:
+        response["installed"] = False
+        response["blocks"] = []
+        response["summary"] = {"added": 0, "deleted": 0, "modified": 0}
+    return response
+
+def get_feedback_file(skill_dir: Path, for_write: bool = False) -> Path:
+    if for_write:
+        return ensure_skill_state_dir(skill_dir) / "feedback.jsonl"
+    return get_skill_state_dir(skill_dir) / "feedback.jsonl"
+
+def normalize_feedback_text(value, limit: int) -> str:
+    text = str(value or "").strip()
+    if len(text) > limit:
+        return text[:limit] + "..."
+    return text
+
+def normalize_feedback_evidence(value) -> list[str]:
+    if value is None:
+        return []
+    items = value if isinstance(value, list) else [value]
+    result = []
+    for item in items[:10]:
+        text = normalize_feedback_text(item, 500)
+        if text:
+            result.append(text)
+    return result
+
+def load_feedback_events(skill_dir: Path, limit: int = 50) -> list[dict]:
+    feedback_file = get_feedback_file(skill_dir)
+    if not feedback_file.exists():
+        return []
+    items = []
+    for line in feedback_file.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            items.append(json.loads(line))
+        except Exception:
+            continue
+    items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return items[:limit]
+
+def append_feedback_event(skill_dir: Path, event: dict):
+    feedback_file = get_feedback_file(skill_dir, for_write=True)
+    with open(feedback_file, "a", encoding="utf-8") as f:
+        f.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 def get_skill_mtime_iso(skill_md: Path) -> str:
     return datetime.fromtimestamp(skill_md.stat().st_mtime).isoformat()
@@ -1183,6 +1376,139 @@ def update_type(skill_id):
     meta['type'] = request.get_json()['type']
     save_meta(skill_dir, meta)
     return jsonify({"success": True})
+
+@app.route('/api/skills/<skill_id>/feedback/config', methods=['GET'])
+def get_feedback_config_route(skill_id):
+    skill_dir = get_skills_path() / skill_id
+    skill_md = skill_dir / "SKILL.md"
+    if not skill_md.exists(): return jsonify({"error": "Not found"}), 404
+    config = load_feedback_config(skill_dir)
+    if config.get("enabled"):
+        config = ensure_feedback_config(skill_dir, skill_id, enabled=True)
+    return jsonify(public_feedback_config(skill_dir, skill_id, config, include_diff=bool(config.get("enabled"))))
+
+@app.route('/api/skills/<skill_id>/feedback/config', methods=['POST'])
+def update_feedback_config_route(skill_id):
+    skill_dir = get_skills_path() / skill_id
+    skill_md = skill_dir / "SKILL.md"
+    if not skill_md.exists(): return jsonify({"error": "Not found"}), 404
+    payload = request.get_json(silent=True) or {}
+    enabled = bool(payload.get("enabled", True))
+    if enabled:
+        config = ensure_feedback_config(skill_dir, skill_id, enabled=True)
+    else:
+        config = load_feedback_config(skill_dir)
+        config["enabled"] = False
+        save_feedback_config(skill_dir, config)
+    return jsonify(public_feedback_config(skill_dir, skill_id, config, include_diff=enabled))
+
+@app.route('/api/skills/<skill_id>/feedback/install', methods=['POST'])
+def install_feedback_snippet_route(skill_id):
+    skill_dir = get_skills_path() / skill_id
+    skill_md = skill_dir / "SKILL.md"
+    if not skill_md.exists(): return jsonify({"error": "Not found"}), 404
+    config = load_feedback_config(skill_dir)
+    if not config.get("enabled"):
+        return jsonify({"error": "Feedback collection is not enabled"}), 400
+    config = ensure_feedback_config(skill_dir, skill_id, enabled=True)
+    if is_write_protected_skill(skill_dir) and not request_confirmed_write():
+        return write_protection_error(skill_dir)
+
+    plan = build_feedback_install_plan(skill_dir, config)
+    if plan["draft_content"] == plan["current_content"]:
+        config["installed_at"] = config.get("installed_at") or datetime.now().isoformat()
+        save_feedback_config(skill_dir, config)
+        return jsonify({
+            "success": True,
+            "already_installed": True,
+            "installed_at": config["installed_at"],
+            "installed_version_id": config.get("installed_version_id"),
+        })
+
+    pre_install_version_id = save_version(
+        skill_dir,
+        "pre-feedback-install",
+        source="pre-feedback-install",
+        note="安装反馈采集片段前的保险快照",
+    )
+    skill_md.write_text(plan["draft_content"], encoding="utf-8")
+    installed_version_id = save_version(
+        skill_dir,
+        "feedback-installed",
+        source="feedback-installed",
+        note="安装本地反馈采集片段",
+    )
+    config["installed_at"] = datetime.now().isoformat()
+    config["installed_version_id"] = installed_version_id
+    save_feedback_config(skill_dir, config)
+    return jsonify({
+        "success": True,
+        "already_installed": False,
+        "pre_install_version_id": pre_install_version_id,
+        "installed_version_id": installed_version_id,
+        "installed_at": config["installed_at"],
+    })
+
+@app.route('/api/skills/<skill_id>/feedback')
+def get_feedback_events_route(skill_id):
+    skill_dir = get_skills_path() / skill_id
+    if not (skill_dir / "SKILL.md").exists(): return jsonify({"error": "Not found"}), 404
+    limit = min(max(int(request.args.get("limit", 50)), 1), 200)
+    return jsonify({"feedback": load_feedback_events(skill_dir, limit=limit)})
+
+@app.route('/api/feedback/runs', methods=['POST'])
+def receive_feedback_run_route():
+    payload = request.get_json(silent=True) or {}
+    skill_id = normalize_feedback_text(payload.get("skill_id"), 200)
+    if not skill_id:
+        return jsonify({"error": "skill_id is required"}), 400
+    skill_dir = get_skills_path() / skill_id
+    if not (skill_dir / "SKILL.md").exists():
+        return jsonify({"error": "Skill not found"}), 404
+
+    config = load_feedback_config(skill_dir)
+    if not config.get("enabled"):
+        return jsonify({"error": "Feedback collection is not enabled"}), 403
+
+    expected_token = config.get("token")
+    provided_token = request.headers.get("X-Skills-Manager-Feedback-Token") or payload.get("token")
+    if expected_token and provided_token != expected_token:
+        return jsonify({"error": "Invalid feedback token"}), 403
+    expected_install_id = config.get("install_id")
+    provided_install_id = payload.get("install_id")
+    if not expected_token and expected_install_id and provided_install_id != expected_install_id:
+        return jsonify({"error": "Invalid install_id"}), 403
+
+    rating = normalize_feedback_text(payload.get("rating"), 20).lower()
+    if rating not in {"positive", "neutral", "negative"}:
+        return jsonify({"error": "rating must be positive, neutral, or negative"}), 400
+
+    now = datetime.now().isoformat()
+    run_id = normalize_feedback_text(payload.get("run_id"), 200)
+    if not run_id:
+        run_id = f"{datetime.now().strftime('%Y%m%d-%H%M%S')}-{skill_id}"
+    event = {
+        "id": f"{datetime.now().strftime('%Y%m%d-%H%M%S')}-{secrets.token_hex(3)}",
+        "skill_id": skill_id,
+        "install_id": normalize_feedback_text(provided_install_id or expected_install_id, 200),
+        "run_id": run_id,
+        "agent": normalize_feedback_text(payload.get("agent"), 100),
+        "rating": rating,
+        "task_summary": normalize_feedback_text(payload.get("task_summary"), 1000),
+        "what_worked": normalize_feedback_text(payload.get("what_worked"), 2000),
+        "what_failed": normalize_feedback_text(payload.get("what_failed"), 2000),
+        "suggested_fix": normalize_feedback_text(payload.get("suggested_fix"), 2000),
+        "evidence": normalize_feedback_evidence(payload.get("evidence")),
+        "created_at": now,
+    }
+    append_feedback_event(skill_dir, event)
+    broadcast_notification({
+        "type": "feedback_received",
+        "skill_id": skill_id,
+        "severity": "bad" if rating == "negative" else "warn" if rating == "neutral" else "ok",
+        "message": f"{skill_id} 收到 {rating} 反馈",
+    })
+    return jsonify({"success": True, "feedback": event})
 
 @app.route('/api/skills/<skill_id>/ai-analyze', methods=['POST'])
 def ai_analyze(skill_id):

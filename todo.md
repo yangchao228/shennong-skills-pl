@@ -331,3 +331,29 @@
 - 已通过 `bash -n scripts/deploy.sh`
 - 已通过 `./.venv/bin/python scripts/smoke_local.py`
 - 已通过 `./.venv/bin/python scripts/e2e_local.py`
+
+## 2026-06-10 Skillfully-style 本地反馈采集闭环
+
+1. 复查现有元数据、写保护、Diff、页面内 modal 和测试脚本
+2. 新增本地反馈配置、snippet 生成、安装 Diff 与写保护确认
+3. 新增 agent 自动回传反馈接口和外置 `feedback.jsonl`
+4. 在 skill 详情页展示反馈采集状态、安装动作和最近反馈
+5. 扩展 smoke/E2E 覆盖反馈配置、安装、回传、读取和重复安装
+6. 更新 README、用户指南和本 TODO review
+
+### Review
+
+- 已新增 `POST /api/feedback/runs`，支持 agent 按 token/install_id 回传 `positive/neutral/negative` 结构化反馈
+- 已新增 `GET/POST /api/skills/<skill_id>/feedback/config`、`POST /api/skills/<skill_id>/feedback/install` 和 `GET /api/skills/<skill_id>/feedback`
+- 反馈配置写入外置 `meta.json`，运行反馈写入外置 `feedback.jsonl`，不污染被管理 skill 目录
+- feedback snippet 带 `skills-manager-feedback` 稳定标记，重复安装会替换原片段，不重复追加
+- 写保护 skill 安装 snippet 时复用 `confirm_write` 和页面内确认 modal，安装前保存 `pre-feedback-install` 快照
+- skill 详情页已增加 `反馈采集` 区域，支持启用、查看 snippet、查看安装 Diff、安装到 `SKILL.md` 和展示最近反馈
+- 已更新 `.env.example`、README 和用户指南，补充 `SKILLS_MANAGER_PUBLIC_URL` 与本地反馈采集说明
+- 已通过 `python3 -m py_compile app.py scripts/smoke_local.py scripts/e2e_local.py`
+- 已通过 `bash -n scripts/deploy.sh`
+- 已通过 `./.venv/bin/python scripts/smoke_local.py`
+- 已通过 `./.venv/bin/python scripts/e2e_local.py`
+- 已通过 `git diff --check`
+- 已用临时 skills/meta 目录启动本地服务并完成浏览器验证：反馈区初始状态、启用、snippet 预览、安装 Diff、写保护确认、安装后状态和最近反馈列表均正常，浏览器 console 无 error/warn
+- 最终复验已确认安装入口收敛为先查看 Diff，再从 Diff 区确认安装，避免绕过安装前审查

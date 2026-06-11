@@ -146,6 +146,51 @@ def main() -> int:
         detail = client.get("/api/skills/demo").get_json()
         check(detail["type"] == "verifiable", "type not stored in external meta")
 
+        fb_initial = client.get("/api/skills/demo/feedback/config").get_json()
+        check(fb_initial["enabled"] is False, "feedback should start disabled")
+        fb_config = client.post("/api/skills/demo/feedback/config", json={"enabled": True}).get_json()
+        check(fb_config["enabled"] is True, "feedback config was not enabled")
+        check(fb_config["token"], "feedback token missing")
+        check(app.FEEDBACK_MARKER_START in fb_config["snippet"], "feedback snippet marker missing")
+        check(fb_config["summary"]["added"] >= 1, "feedback install diff missing")
+        blocked_feedback_install = client.post("/api/skills/demo/feedback/install")
+        check(blocked_feedback_install.status_code == 409, "protected feedback install should require confirmation")
+        check(app.FEEDBACK_MARKER_START not in (skill_dir / "SKILL.md").read_text(encoding="utf-8"), "blocked feedback install changed SKILL.md")
+        installed_feedback = client.post("/api/skills/demo/feedback/install", json={"confirm_write": True}).get_json()
+        check(installed_feedback["success"] is True, "confirmed feedback install failed")
+        skill_text = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+        check(skill_text.count(app.FEEDBACK_MARKER_START) == 1, "feedback snippet should be installed once")
+        installed_again = client.post("/api/skills/demo/feedback/install", json={"confirm_write": True}).get_json()
+        check(installed_again["success"] is True, "repeat feedback install failed")
+        skill_text = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+        check(skill_text.count(app.FEEDBACK_MARKER_START) == 1, "repeat feedback install duplicated snippet")
+        bad_feedback = client.post(
+            "/api/feedback/runs",
+            headers={"X-Skills-Manager-Feedback-Token": "wrong"},
+            json={"skill_id": "demo", "install_id": fb_config["install_id"], "rating": "neutral"},
+        )
+        check(bad_feedback.status_code == 403, "invalid feedback token should be rejected")
+        feedback_post = client.post(
+            "/api/feedback/runs",
+            headers={"X-Skills-Manager-Feedback-Token": fb_config["token"]},
+            json={
+                "skill_id": "demo",
+                "install_id": fb_config["install_id"],
+                "run_id": "run-1",
+                "agent": "codex",
+                "rating": "neutral",
+                "task_summary": "smoke feedback",
+                "what_failed": "final evidence was unclear",
+                "suggested_fix": "add completion evidence",
+                "evidence": ["scripts/smoke_local.py"],
+            },
+        ).get_json()
+        check(feedback_post["success"] is True, "feedback post failed")
+        feedback_list = client.get("/api/skills/demo/feedback").get_json()
+        check(len(feedback_list["feedback"]) == 1, "feedback readback missing")
+        check(feedback_list["feedback"][0]["rating"] == "neutral", "feedback rating mismatch")
+        assert_skill_dir_clean(skill_dir)
+
         test_cases = {"cases": [{"id": "tc1", "name": "basic", "prompt": "x", "validators": []}]}
         tests_resp = client.put("/api/skills/demo/evolve/tests", json=test_cases).get_json()
         check(tests_resp["success"] is True, "test case save failed")

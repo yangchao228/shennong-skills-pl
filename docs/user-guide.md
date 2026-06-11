@@ -122,6 +122,7 @@ chmod +x scripts/deploy.sh
 | `SKILLS_PATH` | skills 根目录 | 自动检测 |
 | `SKILLS_MANAGER_META_DIR` | 管理台元数据目录 | `runtime/meta` |
 | `SKILLS_MANAGER_PROTECTED_ROOTS` | 写保护 skill 根目录，多个路径用系统 path separator 分隔 | `~/.codex/skills` |
+| `SKILLS_MANAGER_PUBLIC_URL` | 生成反馈回传 endpoint 时使用的访问地址，留空则用当前浏览器访问地址 | 空 |
 | `AI_PROVIDER` | AI 提供方选择策略 | `auto` |
 | `OLLAMA_BASE_URL` | Ollama 地址 | `http://127.0.0.1:11434` |
 | `OLLAMA_MODEL` | 默认 Ollama 模型 | `glm4:latest` |
@@ -151,8 +152,10 @@ chmod +x scripts/deploy.sh
 - 基线信息
 - 版本快照
 - 进化日志
+- 反馈采集配置
+- agent 回传的运行反馈
 
-只有恢复版本、恢复基线、自动进化保留改进版这类明确改变 skill 内容的操作，才会写回真实 `SKILL.md`。
+只有恢复版本、恢复基线、自动进化保留改进版、安装反馈采集片段这类明确改变 skill 内容的操作，才会写回真实 `SKILL.md`。
 
 ### 写回保护规则
 
@@ -167,12 +170,15 @@ chmod +x scripts/deploy.sh
 - 测试运行
 - 基线快照保存
 - Diff 查看
+- 反馈配置保存
+- 反馈事件读取
 
 写保护会拦住静默覆盖 `SKILL.md` 的操作：
 
 - 恢复历史版本
 - 恢复到基线
 - 自动进化直接保留改进版
+- 安装反馈采集片段
 
 对写保护 skill，自动进化默认只保存候选版本，不覆盖真实 `SKILL.md`。如果确实要写回，需要在操作时显式确认。
 
@@ -281,7 +287,37 @@ ALL_PROXY=socks5://127.0.0.1:7891
 2. 再处理风险项
 3. 最后按价值决定是否做优化项
 
-### 6.2 进化类型
+### 6.2 反馈采集
+
+`反馈采集`用于把真实使用结果带回管理台。它不是一个让用户事后填写的表单，而是把一段回传指令安装到 `SKILL.md` 的任务收尾规则里。
+
+推荐流程：
+
+1. 在 skill 详情页点击 `启用反馈采集`
+2. 查看系统生成的 snippet 和安装 Diff
+3. 确认后写入 `SKILL.md`
+4. 在 Codex、Claude Code 等本地 agent 中正常使用这个 skill
+5. agent 在完成任务或遇到阻塞后，向本地 `POST /api/feedback/runs` 提交结构化反馈
+6. 回到详情页查看最近反馈
+
+反馈字段包括：
+
+- `rating`：`positive`、`neutral`、`negative`
+- `task_summary`
+- `what_worked`
+- `what_failed`
+- `suggested_fix`
+- `evidence`
+
+注意：
+
+- 反馈配置和 `feedback.jsonl` 保存在 `SKILLS_MANAGER_META_DIR`
+- 安装 snippet 会修改真实 `SKILL.md`，写保护 skill 需要显式确认
+- snippet 会要求 agent 不提交聊天全文、密钥、token 或无关用户数据
+- 如果本地 endpoint 不可用，agent 会继续正常交付，不反复重试
+- 纯网页聊天如果不能访问你的本机 `localhost`，暂时不能自动回传
+
+### 6.3 进化类型
 
 每个 skill 可以手动标记为一种类型：
 
@@ -297,7 +333,7 @@ ALL_PROXY=socks5://127.0.0.1:7891
 
 如果你不确定，先选 `可验证型` 只在输出确实能被规则判断时使用；否则宁愿保守。
 
-### 6.3 AI 分析
+### 6.4 AI 分析
 
 点击 `运行分析` 后，系统会对当前 `SKILL.md` 做一次智能诊断，并返回：
 

@@ -209,6 +209,25 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .ai-list li { display: flex; gap: 7px; line-height: 1.5; color: var(--text); font-size: 13px; }
 .ai-list li::before { content: '→'; color: var(--primary); flex-shrink: 0; }
 
+/* Feedback collection */
+.feedback-panel { border: 1px solid var(--border2); border-radius: var(--r); background: var(--surface2); padding: 14px; }
+.feedback-top { display:flex; gap:10px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; margin-bottom: 10px; }
+.feedback-status { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.feedback-help { font-size:12px; color: var(--muted); line-height:1.6; max-width: 680px; }
+.feedback-endpoint { margin-top:8px; font-family:var(--mono); font-size:11px; color:var(--muted); word-break:break-all; }
+.feedback-snippet { margin-top: 12px; }
+.feedback-snippet-title { font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
+.feedback-list { display:flex; flex-direction:column; gap:8px; margin-top: 12px; }
+.feedback-item { border:1px solid var(--border); border-radius: var(--r); background: var(--bg); padding:10px 12px; }
+.feedback-item-top { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:6px; }
+.feedback-rating { font-size:10px; font-weight:600; padding:2px 7px; border-radius:999px; }
+.feedback-rating.positive { background: var(--green-dim); color: var(--green); }
+.feedback-rating.neutral { background: var(--amber-dim); color: var(--amber); }
+.feedback-rating.negative { background: var(--red-dim); color: var(--red); }
+.feedback-main { font-size:13px; color:var(--text); line-height:1.6; }
+.feedback-sub { font-size:12px; color:var(--muted); line-height:1.6; margin-top:4px; }
+.feedback-diff { margin-top: 12px; }
+
 /* ── Buttons ── */
 .btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px;
   border-radius: var(--r); font-size: 13px; font-family: var(--font); font-weight: 600;
@@ -667,6 +686,13 @@ function renderDetail(data) {
       </div>
 
       <div class="section">
+        <div class="section-title">反馈采集</div>
+        <div id="feedback-area">
+          <div style="color:var(--muted);font-size:13px">加载中...</div>
+        </div>
+      </div>
+
+      <div class="section">
         <div class="section-title">进化类型</div>
         <div class="type-grid">
           ${['verifiable','anchor','judgment'].map(t=>`
@@ -731,6 +757,7 @@ function renderDetail(data) {
   `;
 
   loadTestCases();
+  loadFeedbackPanel();
 }
 
 function switchTab(tabId, el) {
@@ -763,6 +790,161 @@ function saveSkillPrefs(id, patch) {
   const next = { ...loadSkillPrefs(id), ...patch };
   localStorage.setItem(skillPrefKey(id), JSON.stringify(next));
   return next;
+}
+
+// ── Feedback collection ──────────────────────────────────────
+const feedbackRatingLabel = r => ({positive:'成功', neutral:'勉强', negative:'失败'}[r] || r || '未知');
+
+async function loadFeedbackPanel() {
+  const area = document.getElementById('feedback-area');
+  if (!area || !currentId) return;
+  try {
+    const config = await api(`/skills/${currentId}/feedback/config`);
+    const data = await api(`/skills/${currentId}/feedback?limit=20`);
+    if (config.error) throw new Error(config.error);
+    if (data.error) throw new Error(data.error);
+    currentData.feedback_config = config;
+    currentData.feedback_items = data.feedback || [];
+    renderFeedbackPanel(config, data.feedback || []);
+  } catch (e) {
+    area.innerHTML = `<div style="color:var(--red);font-size:13px">反馈采集加载失败: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderFeedbackPanel(config, feedbackItems) {
+  const area = document.getElementById('feedback-area');
+  if (!area) return;
+  const enabled = !!config.enabled;
+  const installed = !!config.installed;
+  const statusText = enabled ? (installed ? '已安装' : '已启用，待安装') : '未启用';
+  const statusClass = enabled ? (installed ? 'positive' : 'neutral') : 'negative';
+  const latest = feedbackItems || [];
+  area.innerHTML = `
+    <div class="feedback-panel">
+      <div class="feedback-top">
+        <div>
+          <div class="feedback-status">
+            <span class="feedback-rating ${statusClass}">${statusText}</span>
+            ${enabled && config.install_id ? `<span class="version-meta">${escHtml(config.install_id)}</span>` : ''}
+          </div>
+          <div class="feedback-help">
+            ${enabled
+              ? 'agent 会在任务完成或阻塞后按 SKILL.md 内的片段提交结构化反馈；本地 endpoint 不可用时会继续正常交付。'
+              : '启用后会生成一段可安装到 SKILL.md 的反馈采集片段，agent 可在任务收尾时自动回传运行反馈。'}
+          </div>
+          ${enabled ? `<div class="feedback-endpoint">${escHtml(config.endpoint_url || '')}</div>` : ''}
+        </div>
+        <div class="actions">
+          ${enabled
+            ? `<button class="btn btn-secondary btn-sm" onclick="showFeedbackDiff()">${installed ? '查看更新 Diff' : '查看安装 Diff'}</button>`
+            : `<button class="btn btn-primary btn-sm" onclick="enableFeedbackCollection()">启用反馈采集</button>`}
+        </div>
+      </div>
+      ${enabled ? `
+        <div class="feedback-snippet">
+          <div class="feedback-snippet-title">Snippet 预览</div>
+          <div class="diff-pre">${escHtml(config.snippet || '')}</div>
+          <div class="feedback-help" style="margin-top:8px">token 只用于本机回传校验，安装后会出现在 SKILL.md 中供本地 agent 使用。</div>
+        </div>
+        <div class="feedback-diff" id="feedback-diff-content"></div>
+      ` : ''}
+      <div class="feedback-list">
+        ${latest.length ? latest.map(item => `
+          <div class="feedback-item">
+            <div class="feedback-item-top">
+              <span class="feedback-rating ${item.rating}">${feedbackRatingLabel(item.rating)}</span>
+              <span class="version-meta">${escHtml((item.created_at || '').slice(0,19).replace('T',' '))}</span>
+              ${item.agent ? `<span class="version-meta">${escHtml(item.agent)}</span>` : ''}
+              ${item.run_id ? `<span class="version-meta">${escHtml(item.run_id)}</span>` : ''}
+            </div>
+            ${item.task_summary ? `<div class="feedback-main">${escHtml(item.task_summary)}</div>` : ''}
+            ${item.what_failed ? `<div class="feedback-sub">问题：${escHtml(item.what_failed)}</div>` : ''}
+            ${item.suggested_fix ? `<div class="feedback-sub">建议：${escHtml(item.suggested_fix)}</div>` : ''}
+          </div>
+        `).join('') : '<div class="feedback-help">暂无自动回传反馈。</div>'}
+      </div>
+    </div>
+  `;
+}
+
+async function enableFeedbackCollection() {
+  const data = await api(`/skills/${currentId}/feedback/config`, {method:'POST', body: JSON.stringify({enabled: true})});
+  if (data.error) {
+    await showMessage({ title: '启用失败', message: data.error, kind: 'error' });
+    return;
+  }
+  currentData.feedback_config = data;
+  renderFeedbackPanel(data, currentData.feedback_items || []);
+  showFeedbackDiff();
+}
+
+function showFeedbackDiff() {
+  const data = currentData?.feedback_config;
+  const target = document.getElementById('feedback-diff-content');
+  if (!data || !target) return;
+  const blocks = data.blocks || [];
+  if (!blocks.length) {
+    target.innerHTML = `<div class="diff-summary">当前 SKILL.md 中的反馈采集片段已是最新。</div>`;
+    return;
+  }
+  target.innerHTML = `
+    <div class="diff-toolbar">
+      <div class="diff-summary">安装反馈采集片段：新增 ${data.summary.added} · 删除 ${data.summary.deleted} · 修改 ${data.summary.modified}</div>
+      <button class="btn btn-green btn-xs" onclick="installFeedbackSnippet()">安装到 SKILL.md</button>
+    </div>
+    <div class="diff-list">
+      ${blocks.map((b, idx) => `
+        <div class="diff-block open" id="feedback-diff-${idx}">
+          <div class="diff-header ${b.type}">
+            <div class="diff-header-left">
+              <span class="diff-kind ${b.type}">${({added:'新增', deleted:'删除', modified:'修改'}[b.type])}</span>
+              <span class="version-meta">影响 ${b.line_count} 行</span>
+            </div>
+            <span class="version-meta">旧 ${b.old_start}-${b.old_end || b.old_start} / 新 ${b.new_start}-${b.new_end || b.new_start}</span>
+          </div>
+          <div class="diff-body">
+            <div class="diff-col-wrap">
+              <div>
+                <div class="diff-col-title">当前版本</div>
+                <div class="diff-pre">${escHtml((b.old_lines || []).join('\n') || '∅')}</div>
+              </div>
+              <div>
+                <div class="diff-col-title">安装后</div>
+                <div class="diff-pre">${escHtml((b.new_lines || []).join('\n') || '∅')}</div>
+              </div>
+            </div>
+          </div>
+        </div>`).join('')}
+    </div>
+  `;
+}
+
+async function installFeedbackSnippet() {
+  const protectedWrite = currentData?.write_protection?.requires_confirm_write;
+  const ok = await confirmAction({
+    title: protectedWrite ? '确认写回外部 skill' : '安装反馈采集片段',
+    message: '安装会更新当前 SKILL.md，把本地反馈采集片段写入任务收尾规则附近。',
+    detail: protectedWrite
+      ? '当前 skill 来自受保护目录。确认后管理台会带 confirm_write=true 写回真实文件，并先保存安装前快照。'
+      : '安装前会自动保存 pre-feedback-install 快照，方便回退。',
+    confirmText: protectedWrite ? '确认写回' : '安装',
+    confirmClass: 'btn-green',
+  });
+  if (!ok) return;
+  const opts = protectedWrite
+    ? {method:'POST', body: JSON.stringify({confirm_write: true})}
+    : {method:'POST'};
+  const data = await api(`/skills/${currentId}/feedback/install`, opts);
+  if (data.error) {
+    await showMessage({ title: '安装失败', message: data.message || data.error, kind: 'error' });
+    return;
+  }
+  await showMessage({
+    title: data.already_installed ? '无需更新' : '已安装',
+    message: data.already_installed ? '当前 SKILL.md 已包含最新反馈采集片段。' : '反馈采集片段已写入 SKILL.md。',
+    kind: 'success',
+  });
+  await selectSkill(currentId);
 }
 
 // ── Type ─────────────────────────────────────────────────────
@@ -1288,6 +1470,7 @@ function notifIcon(type, severity) {
   if (type === 'auto_evolve_start') return '⚡';
   if (type === 'auto_evolve_end') return '✅';
   if (type === 'test_error') return '❌';
+  if (type === 'feedback_received') return '◆';
   if (type === 'round_done') return severity === 'keep' ? '✓' : '✗';
   if (severity === 'ok') return '✓';
   if (severity === 'warn') return '⚠';

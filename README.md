@@ -65,6 +65,7 @@ APP_PORT=7890
 SKILLS_PATH=/path/to/your/skills
 SKILLS_MANAGER_META_DIR=/path/to/manager-meta
 SKILLS_MANAGER_PROTECTED_ROOTS=/path/to/protected/skills
+SKILLS_MANAGER_PUBLIC_URL=http://127.0.0.1:7890
 ANTHROPIC_API_KEY=sk-ant-...
 OPENAI_API_KEY=sk-...
 OPENAI_CODEX_MODEL=gpt-5.2-codex
@@ -162,13 +163,27 @@ export ALL_PROXY=socks5://127.0.0.1:7891
 补充说明：
 
 - 管理台元数据默认写入项目内 `runtime/meta/`，不再写进被管理的 skill 目录
-- `test-cases.json`、摘要缓存、测试结果、版本快照和进化日志都属于管理台元数据
+- `test-cases.json`、摘要缓存、测试结果、版本快照、进化日志、反馈配置和运行反馈都属于管理台元数据
 - `~/.codex/skills` 下的外部安装 skill 默认启用写保护；恢复版本等覆盖 `SKILL.md` 的操作需要显式确认
 - 写保护 skill 的自动进化会先保存候选版本，用户查看 Diff 后再显式应用
 - `恢复到基线` 前会自动保存一个 `pre-restore` 快照，防止误操作
 - 版本历史会展示来源、时间、分数
 - 历史支持前端分页和筛选
 - Web 不再负责编辑 `SKILL.md`，请直接在本地文件里修改
+
+## 本地反馈采集
+
+反馈采集参考 Skillfully 的方式：不是让用户事后回平台填表，而是在管理台中生成一段 feedback snippet，并由用户确认后安装进目标 `SKILL.md`。
+
+启用后，支持访问本机 endpoint 的 agent 会在任务完成或阻塞后，按 snippet 指令向本地接口提交一次结构化反馈：
+
+- `POST /api/feedback/runs`
+- 默认 endpoint 来自当前访问地址，也可以用 `SKILLS_MANAGER_PUBLIC_URL` 固定
+- 反馈数据保存到外置元数据目录的 `feedback.jsonl`
+- 写保护 skill 安装 snippet 前仍需要显式确认
+- snippet 带稳定标记，重复安装会更新原片段，不会重复追加
+
+当前不接入云端运行追踪，也不读取聊天记录。无法访问本机 `localhost` 的纯网页聊天场景暂不属于自动回传范围。
 
 ## 用户指南
 
@@ -187,9 +202,9 @@ bash -n scripts/deploy.sh
 ./.venv/bin/python scripts/e2e_local.py
 ```
 
-`smoke_local.py` 会用临时 skills/meta 目录验证元数据外置、写回保护、候选 Diff 和候选应用流程。
+`smoke_local.py` 会用临时 skills/meta 目录验证元数据外置、写回保护、反馈采集、候选 Diff 和候选应用流程。
 
-`e2e_local.py` 会用 Flask test client、临时 skills/meta 目录和 fake Codex CLI 覆盖主要 HTTP 路由，不启动端口、不调用真实模型、不访问真实 skill 目录。
+`e2e_local.py` 会用 Flask test client、临时 skills/meta 目录和 fake Codex CLI 覆盖主要 HTTP 路由，包括反馈 snippet 安装和 agent 风格回传；不启动端口、不调用真实模型、不访问真实 skill 目录。
 
 ## 安全
 

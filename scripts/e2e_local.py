@@ -153,6 +153,37 @@ def main() -> int:
         check(not detail["health"]["summary"]["has_blocking"], "demo skill should have no blocking issues")
         check(detail["overview_summary"]["summary"], "overview summary missing")
 
+        feedback_config = response_json(client.post("/api/skills/demo-skill/feedback/config", json={"enabled": True}))
+        check(feedback_config["enabled"], "feedback config was not enabled")
+        check(feedback_config["token"], "feedback token missing")
+        check(feedback_config["summary"]["added"] >= 1, "feedback diff missing")
+        feedback_install = response_json(client.post("/api/skills/demo-skill/feedback/install"))
+        check(feedback_install["success"], "feedback install failed for unprotected skill")
+        demo_md = skills_dir / "demo-skill" / "SKILL.md"
+        check(demo_md.read_text(encoding="utf-8").count(app.FEEDBACK_MARKER_START) == 1, "feedback snippet was not installed once")
+        feedback_install_again = response_json(client.post("/api/skills/demo-skill/feedback/install"))
+        check(feedback_install_again["success"], "repeat feedback install failed")
+        check(demo_md.read_text(encoding="utf-8").count(app.FEEDBACK_MARKER_START) == 1, "repeat feedback install duplicated snippet")
+        feedback_post = response_json(client.post(
+            "/api/feedback/runs",
+            headers={"X-Skills-Manager-Feedback-Token": feedback_config["token"]},
+            json={
+                "skill_id": "demo-skill",
+                "install_id": feedback_config["install_id"],
+                "run_id": "e2e-run-1",
+                "agent": "codex",
+                "rating": "negative",
+                "task_summary": "端到端反馈回传",
+                "what_worked": "endpoint accepted structured payload",
+                "what_failed": "需要验证页面读取",
+                "suggested_fix": "显示最近反馈列表",
+                "evidence": ["scripts/e2e_local.py"],
+            },
+        ))
+        check(feedback_post["success"], "feedback event post failed")
+        feedback_read = response_json(client.get("/api/skills/demo-skill/feedback"))
+        check(feedback_read["feedback"][0]["rating"] == "negative", "feedback readback mismatch")
+
         type_resp = response_json(client.put("/api/skills/demo-skill/type", json={"type": "verifiable"}))
         check(type_resp["success"], "type update failed")
         detail = response_json(client.get("/api/skills/demo-skill"))
@@ -176,7 +207,6 @@ def main() -> int:
         history = response_json(client.get("/api/skills/demo-skill/evolve/history"))
         check(any(v["id"] == baseline_id and v["is_baseline"] for v in history["versions"]), "baseline marker missing")
 
-        demo_md = skills_dir / "demo-skill" / "SKILL.md"
         demo_md.write_text(demo_md.read_text(encoding="utf-8") + "\n新增一行用于 baseline diff。\n", encoding="utf-8")
         diff = response_json(client.get("/api/skills/demo-skill/baseline/diff"))
         check(diff["summary"]["added"] >= 1, "baseline diff did not show additions")
@@ -199,6 +229,14 @@ def main() -> int:
         }
         save_protected_tests = response_json(client.put("/api/skills/protected-skill/evolve/tests", json=protected_tests))
         check(save_protected_tests["success"], "protected test save failed")
+        protected_feedback_config = response_json(client.post("/api/skills/protected-skill/feedback/config", json={"enabled": True}))
+        check(protected_feedback_config["enabled"], "protected feedback config was not enabled")
+        protected_feedback_blocked = client.post("/api/skills/protected-skill/feedback/install")
+        protected_feedback_blocked_json = response_json(protected_feedback_blocked)
+        check(protected_feedback_blocked.status_code == 409, "protected feedback install should require confirmation")
+        check(protected_feedback_blocked_json["write_protection"]["requires_confirm_write"], "protected feedback write flag missing")
+        protected_feedback_allowed = response_json(client.post("/api/skills/protected-skill/feedback/install", json={"confirm_write": True}))
+        check(protected_feedback_allowed["success"], "confirmed protected feedback install failed")
         protected_baseline = response_json(client.post("/api/skills/protected-skill/evolve/set-baseline"))
         protected_baseline_id = protected_baseline["version_id"]
         check(protected_baseline_id, "protected baseline missing")

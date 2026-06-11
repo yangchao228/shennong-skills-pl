@@ -156,6 +156,10 @@ def main() -> int:
         feedback_config = response_json(client.post("/api/skills/demo-skill/feedback/config", json={"enabled": True}))
         check(feedback_config["enabled"], "feedback config was not enabled")
         check(feedback_config["token"], "feedback token missing")
+        check(feedback_config["fallback_file"].endswith("feedback.jsonl"), "feedback fallback file missing")
+        check("Fallback file:" in feedback_config["snippet"], "feedback fallback path missing from snippet")
+        check("Fallback command" in feedback_config["snippet"], "feedback fallback command missing from snippet")
+        check('+ "\\\\n")' in feedback_config["snippet"], "feedback fallback newline escaping is broken")
         check(feedback_config["summary"]["added"] >= 1, "feedback diff missing")
         feedback_install = response_json(client.post("/api/skills/demo-skill/feedback/install"))
         check(feedback_install["success"], "feedback install failed for unprotected skill")
@@ -181,8 +185,25 @@ def main() -> int:
             },
         ))
         check(feedback_post["success"], "feedback event post failed")
+        fallback_event = {
+            "id": "fallback-e2e-1",
+            "skill_id": "demo-skill",
+            "install_id": feedback_config["install_id"],
+            "run_id": "fallback-e2e-run-1",
+            "agent": "codex",
+            "rating": "neutral",
+            "task_summary": "端到端 fallback 反馈",
+            "what_worked": "fallback jsonl can be read by the existing feedback API",
+            "what_failed": "endpoint unreachable in isolated agent context",
+            "suggested_fix": "keep fallback file in installed snippet",
+            "evidence": ["feedback.jsonl"],
+            "created_at": "2999-01-01T00:00:00",
+        }
+        with open(feedback_config["fallback_file"], "a", encoding="utf-8") as f:
+            f.write(json.dumps(fallback_event, ensure_ascii=False) + "\n")
         feedback_read = response_json(client.get("/api/skills/demo-skill/feedback"))
-        check(feedback_read["feedback"][0]["rating"] == "negative", "feedback readback mismatch")
+        check(feedback_read["feedback"][0]["run_id"] == "fallback-e2e-run-1", "fallback feedback readback mismatch")
+        check(feedback_read["feedback"][1]["rating"] == "negative", "feedback readback mismatch")
 
         type_resp = response_json(client.put("/api/skills/demo-skill/type", json={"type": "verifiable"}))
         check(type_resp["success"], "type update failed")

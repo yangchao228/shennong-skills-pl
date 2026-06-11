@@ -357,3 +357,17 @@
 - 已通过 `git diff --check`
 - 已用临时 skills/meta 目录启动本地服务并完成浏览器验证：反馈区初始状态、启用、snippet 预览、安装 Diff、写保护确认、安装后状态和最近反馈列表均正常，浏览器 console 无 error/warn
 - 最终复验已确认安装入口收敛为先查看 Diff，再从 Diff 区确认安装，避免绕过安装前审查
+
+## 2026-06-11 本地反馈 fallback 补强
+
+1. 复核试验技能验证结果：嵌套 Codex 能读取反馈片段，但访问不到父进程 localhost endpoint
+2. 在反馈 snippet 中加入 fallback file 路径和本地 JSONL 追加命令
+3. 让反馈配置 API 返回 fallback file，并在反馈面板中显示该路径
+4. 扩展 smoke/E2E，模拟 endpoint 不可用时直接写 fallback JSONL，并通过原反馈读取 API 读回
+5. 更新 README 和用户指南
+
+### Review
+
+- 新安装或刷新后的 feedback snippet 会先尝试 HTTP 回传；如果 endpoint 不可达，则追加一条结构一致的 JSONL 到 fallback file
+- fallback file 仍位于外置 `SKILLS_MANAGER_META_DIR`，不写入被管理 skill 目录
+- 详情页展示 endpoint 和 fallback file，最近反馈列表复用同一个读取链路

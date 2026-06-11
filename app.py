@@ -429,7 +429,35 @@ def save_feedback_config(skill_dir: Path, config: dict):
     meta["feedback_config"] = config
     save_meta(skill_dir, meta)
 
-def render_feedback_snippet(skill_id: str, install_id: str, token: str, endpoint_url: str) -> str:
+def current_feedback_fallback_file(skill_dir: Path) -> str:
+    return str(get_feedback_file(skill_dir, for_write=True))
+
+def preview_feedback_fallback_file(skill_dir: Path) -> str:
+    return str(get_feedback_file(skill_dir, for_write=False))
+
+def render_feedback_snippet(skill_id: str, install_id: str, token: str, endpoint_url: str, fallback_file: str) -> str:
+    event_payload = json.dumps({
+        "skill_id": skill_id,
+        "install_id": install_id,
+        "agent": "codex",
+        "rating": "neutral",
+        "task_summary": "short task summary",
+        "what_worked": "what worked",
+        "what_failed": "what was unclear or failed",
+        "suggested_fix": "what instruction should change",
+        "evidence": ["command, diff, path, or check"],
+    }, ensure_ascii=False)
+    fallback_payload = json.dumps({
+        "skill_id": skill_id,
+        "install_id": install_id,
+        "agent": "codex",
+        "rating": "neutral",
+        "task_summary": "short task summary",
+        "what_worked": "what worked",
+        "what_failed": "endpoint unavailable or instruction gap",
+        "suggested_fix": "what instruction should change",
+        "evidence": ["command, diff, path, or check"],
+    }, ensure_ascii=False)
     return f"""{FEEDBACK_MARKER_START}
 ## Feedback Collection
 
@@ -439,21 +467,39 @@ Rules:
 - Do this only after the final result is prepared, or after you have clearly reported a blocker.
 - Do not interrupt the main task to ask the user for feedback.
 - Do not include conversation transcripts, secrets, tokens, or unrelated user data.
-- If the endpoint is unavailable, continue normally and do not retry repeatedly.
+- Try the HTTP endpoint once. If it is unavailable, append one JSON line to the fallback file instead of retrying repeatedly.
 
 Submit a JSON event with one rating, a short reason, the instruction gap, and concrete evidence when available.
 
 Endpoint: `{endpoint_url}`
 Skill ID: `{skill_id}`
 Install ID: `{install_id}`
+Fallback file: `{fallback_file}`
 
-Example command:
+HTTP command:
 
 ```bash
 curl -sS -X POST '{endpoint_url}' \\
   -H 'Content-Type: application/json' \\
   -H 'X-Skills-Manager-Feedback-Token: {token}' \\
-  -d '{{"skill_id":"{skill_id}","install_id":"{install_id}","agent":"codex","rating":"neutral","task_summary":"short task summary","what_worked":"what worked","what_failed":"what was unclear or failed","suggested_fix":"what instruction should change","evidence":["command, diff, path, or check"]}}'
+  -d '{event_payload}'
+```
+
+Fallback command, only when the HTTP endpoint is unreachable:
+
+```bash
+python3 - '{fallback_file}' <<'PY'
+import json, secrets, sys
+from datetime import datetime
+
+event = {fallback_payload}
+now = datetime.now().isoformat()
+event["id"] = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + secrets.token_hex(3)
+event["run_id"] = event.get("run_id") or datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + event["skill_id"]
+event["created_at"] = now
+with open(sys.argv[1], "a", encoding="utf-8") as f:
+    f.write(json.dumps(event, ensure_ascii=False) + "\\\\n")
+PY
 ```
 {FEEDBACK_MARKER_END}"""
 
@@ -465,11 +511,13 @@ def ensure_feedback_config(skill_dir: Path, skill_id: str, enabled: bool = True)
         config["token"] = secrets.token_urlsafe(18)
     config["enabled"] = bool(enabled)
     config["endpoint_url"] = current_feedback_endpoint_url()
+    config["fallback_file"] = current_feedback_fallback_file(skill_dir)
     config["snippet"] = render_feedback_snippet(
         skill_id,
         config["install_id"],
         config["token"],
         config["endpoint_url"],
+        config["fallback_file"],
     )
     save_feedback_config(skill_dir, config)
     return config
@@ -512,6 +560,7 @@ def build_feedback_install_plan(skill_dir: Path, config: dict) -> dict:
         config.get("install_id", ""),
         config.get("token", ""),
         config.get("endpoint_url") or current_feedback_endpoint_url(),
+        config.get("fallback_file") or current_feedback_fallback_file(skill_dir),
     )
     draft_content = build_skill_with_feedback_snippet(current_content, snippet)
     blocks = build_diff_blocks(current_content, draft_content)
@@ -534,6 +583,9 @@ def public_feedback_config(skill_dir: Path, skill_id: str, config: dict, include
         "install_id": config.get("install_id"),
         "token": config.get("token") if enabled else None,
         "endpoint_url": config.get("endpoint_url") or current_feedback_endpoint_url(),
+        "fallback_file": config.get("fallback_file") or (
+            current_feedback_fallback_file(skill_dir) if enabled else preview_feedback_fallback_file(skill_dir)
+        ),
         "snippet": config.get("snippet") if enabled else "",
         "installed_at": config.get("installed_at"),
         "installed_version_id": config.get("installed_version_id"),

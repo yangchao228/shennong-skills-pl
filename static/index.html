@@ -829,10 +829,11 @@ function renderFeedbackPanel(config, feedbackItems) {
           </div>
           <div class="feedback-help">
             ${enabled
-              ? 'agent 会在任务完成或阻塞后按 SKILL.md 内的片段提交结构化反馈；本地 endpoint 不可用时会继续正常交付。'
+              ? 'agent 会在任务完成或阻塞后按 SKILL.md 内的片段提交结构化反馈；本地 endpoint 不可用时写入 fallback JSONL。'
               : '启用后会生成一段可安装到 SKILL.md 的反馈采集片段，agent 可在任务收尾时自动回传运行反馈。'}
           </div>
           ${enabled ? `<div class="feedback-endpoint">${escHtml(config.endpoint_url || '')}</div>` : ''}
+          ${enabled && config.fallback_file ? `<div class="feedback-endpoint">Fallback: ${escHtml(config.fallback_file)}</div>` : ''}
         </div>
         <div class="actions">
           ${enabled

@@ -151,7 +151,11 @@ def main() -> int:
         fb_config = client.post("/api/skills/demo/feedback/config", json={"enabled": True}).get_json()
         check(fb_config["enabled"] is True, "feedback config was not enabled")
         check(fb_config["token"], "feedback token missing")
+        check(fb_config["fallback_file"].endswith("feedback.jsonl"), "feedback fallback file missing")
         check(app.FEEDBACK_MARKER_START in fb_config["snippet"], "feedback snippet marker missing")
+        check("Fallback file:" in fb_config["snippet"], "feedback fallback path missing from snippet")
+        check("Fallback command" in fb_config["snippet"], "feedback fallback command missing from snippet")
+        check('+ "\\\\n")' in fb_config["snippet"], "feedback fallback newline escaping is broken")
         check(fb_config["summary"]["added"] >= 1, "feedback install diff missing")
         blocked_feedback_install = client.post("/api/skills/demo/feedback/install")
         check(blocked_feedback_install.status_code == 409, "protected feedback install should require confirmation")
@@ -186,9 +190,26 @@ def main() -> int:
             },
         ).get_json()
         check(feedback_post["success"] is True, "feedback post failed")
+        fallback_event = {
+            "id": "fallback-smoke-1",
+            "skill_id": "demo",
+            "install_id": fb_config["install_id"],
+            "run_id": "fallback-run-1",
+            "agent": "codex",
+            "rating": "negative",
+            "task_summary": "fallback feedback",
+            "what_worked": "fallback jsonl was writable",
+            "what_failed": "endpoint was unavailable",
+            "suggested_fix": "keep local jsonl fallback",
+            "evidence": ["fallback file"],
+            "created_at": "2999-01-01T00:00:00",
+        }
+        with open(fb_config["fallback_file"], "a", encoding="utf-8") as f:
+            f.write(json.dumps(fallback_event, ensure_ascii=False) + "\n")
         feedback_list = client.get("/api/skills/demo/feedback").get_json()
-        check(len(feedback_list["feedback"]) == 1, "feedback readback missing")
-        check(feedback_list["feedback"][0]["rating"] == "neutral", "feedback rating mismatch")
+        check(len(feedback_list["feedback"]) == 2, "feedback readback missing")
+        check(feedback_list["feedback"][0]["run_id"] == "fallback-run-1", "fallback feedback readback mismatch")
+        check(feedback_list["feedback"][1]["rating"] == "neutral", "feedback rating mismatch")
         assert_skill_dir_clean(skill_dir)
 
         test_cases = {"cases": [{"id": "tc1", "name": "basic", "prompt": "x", "validators": []}]}

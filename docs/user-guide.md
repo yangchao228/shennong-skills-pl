@@ -298,7 +298,8 @@ ALL_PROXY=socks5://127.0.0.1:7891
 3. 确认后写入 `SKILL.md`
 4. 在 Codex、Claude Code 等本地 agent 中正常使用这个 skill
 5. agent 在完成任务或遇到阻塞后，向本地 `POST /api/feedback/runs` 提交结构化反馈
-6. 回到详情页查看最近反馈
+6. 如果本地 endpoint 不可达，agent 追加一条 JSONL 到 snippet 中给出的 fallback file
+7. 回到详情页查看最近反馈
 
 反馈字段包括：
 
@@ -314,8 +315,8 @@ ALL_PROXY=socks5://127.0.0.1:7891
 - 反馈配置和 `feedback.jsonl` 保存在 `SKILLS_MANAGER_META_DIR`
 - 安装 snippet 会修改真实 `SKILL.md`，写保护 skill 需要显式确认
 - snippet 会要求 agent 不提交聊天全文、密钥、token 或无关用户数据
-- 如果本地 endpoint 不可用，agent 会继续正常交付，不反复重试
-- 纯网页聊天如果不能访问你的本机 `localhost`，暂时不能自动回传
+- 如果本地 endpoint 不可用，agent 只尝试一次，然后写 fallback file，不反复重试
+- 纯网页聊天如果既不能访问你的本机 `localhost`，也不能写本地 fallback file，暂时不能自动回传
 
 ### 6.3 进化类型
 

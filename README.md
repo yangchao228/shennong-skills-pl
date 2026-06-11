@@ -180,10 +180,11 @@ export ALL_PROXY=socks5://127.0.0.1:7891
 - `POST /api/feedback/runs`
 - 默认 endpoint 来自当前访问地址，也可以用 `SKILLS_MANAGER_PUBLIC_URL` 固定
 - 反馈数据保存到外置元数据目录的 `feedback.jsonl`
+- 如果 agent 无法访问本机 endpoint，snippet 会要求追加一条 JSONL 到 fallback file，同样会被最近反馈列表读取
 - 写保护 skill 安装 snippet 前仍需要显式确认
 - snippet 带稳定标记，重复安装会更新原片段，不会重复追加
 
-当前不接入云端运行追踪，也不读取聊天记录。无法访问本机 `localhost` 的纯网页聊天场景暂不属于自动回传范围。
+当前不接入云端运行追踪，也不读取聊天记录。无法访问本机 `localhost` 且无法写本地 fallback file 的纯网页聊天场景暂不属于自动回传范围。
 
 ## 用户指南
 
